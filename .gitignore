@@ -1,0 +1,23 @@
+# Segredos — nunca versionar (.env.example é o modelo, esse sim vai para o git)
+.env
+.env.*
+!.env.example
+config.php
+
+# Uploads dos usuários: mantém o diretório, ignora o conteúdo
+public/uploads/*
+!public/uploads/.gitkeep
+
+# Backups locais
+*.dump
+*.sql.gz
+*.tar.gz
+backups/
+
+# Sistema operacional / editores
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+.vscode/
