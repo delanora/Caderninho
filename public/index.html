@@ -184,7 +184,7 @@ dialog .row .btn{width:auto}
 <dialog id="dcat" aria-label="Categoria">
   <h2>Categoria</h2>
   <input id="cn" placeholder="Nome (ex: Impostos)" aria-label="Nome da categoria">
-  <input id="ce" placeholder="Emoji (ex: 💸)" maxlength="4" aria-label="Emoji da categoria">
+  <input id="ce" placeholder="Emoji (automático)" maxlength="8" aria-label="Emoji da categoria" title="Calculado pelo nome da categoria — edite para escolher outro">
   <input id="cc" type="color" value="#ffd6e7" aria-label="Cor da categoria">
   <div class="row">
     <button class="btn" id="csave">Salvar categoria</button>
@@ -220,6 +220,50 @@ dialog .row .btn{width:auto}
 const $=s=>document.querySelector(s);
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const MSG={senha:'Senha incorreta.',muitas_tentativas:'Muitas tentativas. Tente de novo em alguns minutos.',csrf:'Sessão expirada. Recarregue a página.',auth:'Entre novamente.',grande:'Arquivo grande demais.',tipo:'Formato não suportado (use JPG, PNG, WEBP ou GIF).',db:'Banco de dados indisponível.',interno:'Erro interno. Tente de novo.',campo_obrigatorio:'Preencha os campos obrigatórios.',campo_longo:'Texto longo demais.',campo_invalido:'Valor inválido.',categoria_inexistente:'Escolha uma categoria válida.',nao_encontrado:'Conteúdo não encontrado.',json_invalido:'Requisição inválida.'};
+/* --- emoji calculado a partir do nome (vocabulário contábil) --- */
+const EMOJI_REGRAS=[
+  [/contabil|plano de contas|lancament/, '📒'],
+  [/impost|tribut|darf|icms|\biss\b|\bpis\b|cofins|irpf|irpj|csll|simples|receita federal|recolhiment|\bguia/, '🏛️'],
+  [/notas? fiscais?|nf-?e\b|nfs-?e|emitir nota|\bfaturas?\b/, '🧾'],
+  [/receit|venda|renda|faturamento/, '💵'],
+  [/folha|holerite|salari|pro-?labore|rescis|ferias|decimo terceiro|esocial|fgts|inss|departamento pessoal|\bdp\b|admiss|demiss/, '👥'],
+  [/cliente|contrato|proposta/, '🤝'],
+  [/fornecedor|insumo/, '📦'],
+  [/conta a pagar|contas a pagar|pagament|boleto|liquidac/, '💳'],
+  [/conta a receber|contas a receber|cobranca|inadimpl|recebiment/, '💰'],
+  [/caixa|banco|conciliac|extrato|tesourar|corrente|conta bancaria/, '🏦'],
+  [/balanc|balancete|\bdre\b|demonstrativ|\bativo\b|\bpassivo\b|patrimoni/, '📊'],
+  [/relatori|informe|resultado|desempenho/, '📈'],
+  [/auditoria|revisao|conferenc/, '🔍'],
+  [/sped|\becd\b|\becf\b|dctf|\befd\b|obrigac/, '📑'],
+  [/prazo|venciment|calendari|agenda/, '📅'],
+  [/abertura|cnpj|legaliz|contrato social|alterac|junta comercial/, '🏢'],
+  [/certificad|senha|acesso|procurac|e-?cac|token/, '🔐'],
+  [/treinament|capacitac|curso/, '📚'],
+  [/sistema|software|backup|\bti\b|computador|equipament/, '💻'],
+  [/meta|indicador|\bkpi\b|objetiv/, '🎯'],
+  [/despesa|custo|gasto/, '💸'],
+  [/compra|material|papelaria/, '🛒'],
+  [/estoque|inventari/, '🗃️'],
+  [/juridic|processo|advogad|trabalhista/, '⚖️'],
+  [/alvara|licenc|prefeitura|vigilancia/, '📜'],
+  [/viage[mn]s?|diaria|reembols|deslocament/, '✈️'],
+  [/imobilizad|depreciac/, '🏗️'],
+  [/socio|honorar|lucro|distribuic|empresa/, '💼'],
+  [/ideia|melhoria|sugest/, '💡']
+];
+const EMOJI_PALETA=['📁','🗂️','🏷️','🔖','📌','🗒️','📎','🧷'];
+const semAcento=s=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+function emojiDoNome(nome){
+  const n=semAcento(String(nome||'')).trim();
+  if(!n)return '';
+  for(const [re,emoji] of EMOJI_REGRAS)if(re.test(n))return emoji;
+  let h=7;
+  for(const ch of n)h=(h*31+ch.codePointAt(0))>>>0;
+  return EMOJI_PALETA[h%EMOJI_PALETA.length];
+}
+/* --- fim emoji --- */
+
 const svg=(d,w=16)=>`<svg viewBox="0 0 24 24" width="${w}" height="${w}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 const ICON_ALL=svg('<path d="M4 7.5 12 4l8 3.5-8 3.5z"/><path d="m4 12 8 3.5 8-3.5"/><path d="m4 16.5 8 3.5 8-3.5"/>',15);
 const ICON_EDIT=svg('<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',14);
@@ -228,7 +272,7 @@ const ICON_NOTE=`<svg viewBox="0 0 48 48" fill="none" aria-hidden="true">
   <path d="M16.5 6v36" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" opacity=".4"/>
   <path d="M22 17h8M22 24h8M22 31h5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" opacity=".7"/>
   <path d="M31 6v10l3-2 3 2V6" fill="currentColor" opacity=".85"/></svg>`;
-let cats=[],cur=0,eid=0,ecat=0,csrf='',t0,toastT;
+let cats=[],cur=0,eid=0,ecat=0,csrf='',t0,toastT,emojiManual=false;
 
 function toast(msg){const el=$('#toast');el.textContent=msg;el.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>{el.hidden=true},4200)}
 
@@ -299,16 +343,23 @@ async function delTopic(id){
 function editCat(id){
   const c=cats.find(x=>x.id==id)||{};
   ecat=id||0;
-  $('#cn').value=c.name||'';$('#ce').value=c.emoji||'🌸';$('#cc').value=c.color||'#ffd6e7';
+  emojiManual=!!id;                 // editar preserva o emoji já salvo
+  $('#cn').value=c.name||'';
+  $('#ce').value=id?(c.emoji||''):'';
+  $('#cc').value=c.color||'#ffd6e7';
   $('#cdel').hidden=!id;dcat.showModal();$('#cn').focus();
 }
 $('#newcat').onclick=()=>editCat(0);
 $('#ccancel').onclick=()=>dcat.close();
+// Enquanto o usuário não escolher um emoji, ele acompanha o nome digitado.
+$('#cn').oninput=()=>{if(!emojiManual)$('#ce').value=emojiDoNome($('#cn').value)};
+$('#ce').oninput=()=>{emojiManual=$('#ce').value.trim()!==''};
 $('#csave').onclick=async()=>{
   const name=$('#cn').value.trim();
   if(!name)return $('#cn').focus();
+  const emoji=$('#ce').value.trim()||emojiDoNome(name);
   try{
-    await api('cat_save',{id:ecat,name,emoji:$('#ce').value,color:$('#cc').value});
+    await api('cat_save',{id:ecat,name,emoji,color:$('#cc').value});
     dcat.close();await loadCats();await list();
   }catch(e){}
 };
