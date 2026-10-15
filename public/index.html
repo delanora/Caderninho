@@ -111,6 +111,24 @@ dialog h2{font-size:22px;margin-bottom:14px}
 dialog input,dialog select{margin-bottom:10px}
 dialog .row{display:flex;gap:8px;margin-top:16px}
 dialog .row .btn{width:auto}
+.emoji-field{position:relative;margin-bottom:10px}
+.emoji-btn{display:flex;align-items:center;gap:10px;width:100%;min-height:42px;padding:7px 12px;
+  border:1px solid var(--line);border-radius:var(--r-sm);background:var(--surface);color:var(--ink);
+  font:inherit;text-align:left;cursor:pointer;transition:border-color .15s,background .15s}
+.emoji-btn:hover{border-color:#e2d3e9;background:var(--soft)}
+.emoji-btn:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.emoji-val{font-size:20px;line-height:1;min-width:26px;text-align:center}
+.emoji-hint{margin-left:auto;font-size:13px;color:var(--ink-2)}
+.emoji-pop{position:absolute;z-index:20;top:calc(100% + 6px);left:0;right:0;padding:8px;
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  box-shadow:0 18px 40px rgba(74,58,94,.18);max-height:min(240px,38vh);overflow:auto}
+.emoji-auto{display:block;width:100%;padding:7px 10px;border:0;border-radius:8px;background:transparent;
+  color:var(--ink-2);font:500 13px Inter,sans-serif;text-align:left;cursor:pointer}
+.emoji-auto:hover,.emoji-auto.on{background:var(--soft);color:var(--ink)}
+.emoji-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(38px,1fr));gap:2px;margin-top:6px}
+.emoji-grid button{border:0;background:transparent;border-radius:8px;padding:6px 0;font-size:19px;line-height:1;cursor:pointer}
+.emoji-grid button:hover{background:var(--soft)}
+.emoji-grid button[aria-pressed="true"]{background:var(--soft);box-shadow:inset 0 0 0 2px var(--acc)}
 .tb{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
 .tb button{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);
   border-radius:8px;padding:7px 11px;cursor:pointer;font:500 13px Inter,sans-serif;color:var(--ink)}
@@ -184,7 +202,17 @@ dialog .row .btn{width:auto}
 <dialog id="dcat" aria-label="Categoria">
   <h2>Categoria</h2>
   <input id="cn" placeholder="Nome (ex: Impostos)" aria-label="Nome da categoria">
-  <input id="ce" placeholder="Emoji (automático)" maxlength="8" aria-label="Emoji da categoria" title="Calculado pelo nome da categoria — edite para escolher outro">
+  <div class="emoji-field">
+    <input id="ce" type="hidden" value="">
+    <button type="button" class="emoji-btn" id="cepick" aria-haspopup="true" aria-expanded="false" aria-label="Escolher emoji da categoria">
+      <span class="emoji-val" id="ceval">🌸</span>
+      <span class="emoji-hint" id="cehint">Automático</span>
+    </button>
+    <div class="emoji-pop" id="cepop" hidden aria-label="Emojis">
+      <button type="button" class="emoji-auto">Automático (pelo nome)</button>
+      <div class="emoji-grid" id="cegrid"></div>
+    </div>
+  </div>
   <input id="cc" type="color" value="#ffd6e7" aria-label="Cor da categoria">
   <div class="row">
     <button class="btn" id="csave">Salvar categoria</button>
@@ -264,6 +292,34 @@ function emojiDoNome(nome){
 }
 /* --- fim emoji --- */
 
+/* --- teclado de emojis --- */
+const EMOJI_OPCOES=['📒','📊','📈','🧾','🏛️','💵','💰','💳','🏦','📑',
+  '🔍','📅','🏢','🔐','📜','⚖️','💼','👥','🤝','📦',
+  '🛒','🗃️','🏗️','🎯','💸','✈️','📚','💻','💡','🗂️',
+  '📁','🏷️','🔖','📌','🗒️','📎','🧷','🔗','🧩','⭐',
+  '✅','⚠️','⏰','🔔','✉️','🎁','🌸','🗓️'];
+$('#cegrid').innerHTML=EMOJI_OPCOES.map(e=>`<button type="button" data-em="${e}" aria-pressed="false">${e}</button>`).join('');
+function renderEmoji(){
+  const manual=$('#ce').value;
+  $('#ceval').textContent=manual||emojiDoNome($('#cn').value)||'🌸';
+  $('#cehint').textContent=manual?'Trocar':'Automático';
+  $('#cepop').querySelector('.emoji-auto').classList.toggle('on',!manual);
+  $('#cegrid').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.em===manual)));
+}
+function popEmoji(open){
+  const pop=$('#cepop');
+  if(open===undefined)open=pop.hidden;
+  pop.hidden=!open;
+  $('#cepick').setAttribute('aria-expanded',String(open));
+  if(open)(pop.querySelector('.emoji-grid button[aria-pressed="true"]')||pop.querySelector('.emoji-auto')).focus();
+}
+$('#cepick').onclick=()=>popEmoji();
+$('#cepop').querySelector('.emoji-auto').onclick=()=>{$('#ce').value='';renderEmoji();popEmoji(false);$('#cepick').focus()};
+$('#cegrid').onclick=e=>{const b=e.target.closest('button[data-em]');if(!b)return;$('#ce').value=b.dataset.em;renderEmoji();popEmoji(false);$('#cepick').focus()};
+document.addEventListener('click',e=>{if(!e.target.closest('.emoji-field'))popEmoji(false)});
+dcat.addEventListener('cancel',e=>{if(!$('#cepop').hidden){e.preventDefault();popEmoji(false)}});
+/* --- fim teclado --- */
+
 const svg=(d,w=16)=>`<svg viewBox="0 0 24 24" width="${w}" height="${w}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 const ICON_ALL=svg('<path d="M4 7.5 12 4l8 3.5-8 3.5z"/><path d="m4 12 8 3.5 8-3.5"/><path d="m4 16.5 8 3.5 8-3.5"/>',15);
 const ICON_EDIT=svg('<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',14);
@@ -272,7 +328,7 @@ const ICON_NOTE=`<svg viewBox="0 0 48 48" fill="none" aria-hidden="true">
   <path d="M16.5 6v36" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" opacity=".4"/>
   <path d="M22 17h8M22 24h8M22 31h5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" opacity=".7"/>
   <path d="M31 6v10l3-2 3 2V6" fill="currentColor" opacity=".85"/></svg>`;
-let cats=[],cur=0,eid=0,ecat=0,csrf='',t0,toastT,emojiManual=false;
+let cats=[],cur=0,eid=0,ecat=0,csrf='',t0,toastT;
 
 function toast(msg){const el=$('#toast');el.textContent=msg;el.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>{el.hidden=true},4200)}
 
@@ -343,17 +399,17 @@ async function delTopic(id){
 function editCat(id){
   const c=cats.find(x=>x.id==id)||{};
   ecat=id||0;
-  emojiManual=!!id;                 // editar preserva o emoji já salvo
   $('#cn').value=c.name||'';
-  $('#ce').value=id?(c.emoji||''):'';
+  $('#ce').value=id?(c.emoji||''):'';   // vazio = automático, calculado pelo nome
   $('#cc').value=c.color||'#ffd6e7';
-  $('#cdel').hidden=!id;dcat.showModal();$('#cn').focus();
+  $('#cdel').hidden=!id;
+  renderEmoji();                        // editar preserva o emoji salvo
+  dcat.showModal();$('#cn').focus();
 }
 $('#newcat').onclick=()=>editCat(0);
 $('#ccancel').onclick=()=>dcat.close();
-// Enquanto o usuário não escolher um emoji, ele acompanha o nome digitado.
-$('#cn').oninput=()=>{if(!emojiManual)$('#ce').value=emojiDoNome($('#cn').value)};
-$('#ce').oninput=()=>{emojiManual=$('#ce').value.trim()!==''};
+dcat.addEventListener('close',()=>popEmoji(false));
+$('#cn').oninput=()=>renderEmoji();
 $('#csave').onclick=async()=>{
   const name=$('#cn').value.trim();
   if(!name)return $('#cn').focus();
