@@ -105,6 +105,7 @@ main{flex:1;min-width:0;padding:28px 32px}
 
 /* ---------- diálogos ---------- */
 dialog{border:1px solid var(--line);border-radius:var(--r-lg);padding:26px;width:min(680px,94vw);
+  max-height:92vh;overflow:auto;
   background:var(--surface);color:var(--ink);box-shadow:0 24px 64px rgba(74,58,94,.22)}
 dialog::backdrop{background:rgba(74,58,94,.30);backdrop-filter:blur(2px)}
 dialog h2{font-size:22px;margin-bottom:14px}
@@ -119,9 +120,17 @@ dialog .row .btn{width:auto}
 .emoji-btn:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 .emoji-val{font-size:20px;line-height:1;min-width:26px;text-align:center}
 .emoji-hint{margin-left:auto;font-size:13px;color:var(--ink-2)}
-.emoji-pop{position:absolute;z-index:20;top:calc(100% + 6px);left:0;right:0;padding:8px;
-  background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
-  box-shadow:0 18px 40px rgba(74,58,94,.18);max-height:min(240px,38vh);overflow:auto}
+/* O seletor ocupa espaço no diálogo (em vez de flutuar por cima): a altura do
+   card anima e, como o <dialog> é centralizado, ele cresce para baixo e o topo
+   sobe junto, mantendo-se no centro da tela. */
+.emoji-pop{display:grid;grid-template-rows:0fr;visibility:hidden;
+  transition:grid-template-rows .24s cubic-bezier(.4,0,.2,1),visibility 0s .24s}
+.emoji-pop.open{grid-template-rows:1fr;visibility:visible;
+  transition:grid-template-rows .24s cubic-bezier(.4,0,.2,1),visibility 0s}
+.emoji-pop-inner{overflow:hidden;min-height:0;padding:8px;border-radius:var(--r);background:var(--surface);
+  box-shadow:0 0 0 1px var(--line),0 12px 28px rgba(74,58,94,.10)}
+.emoji-pop:not(.open) .emoji-pop-inner{background:transparent;box-shadow:none}
+.emoji-grid{max-height:min(240px,38vh);overflow:auto}
 .emoji-auto{display:block;width:100%;padding:7px 10px;border:0;border-radius:8px;background:transparent;
   color:var(--ink-2);font:500 13px Inter,sans-serif;text-align:left;cursor:pointer}
 .emoji-auto:hover,.emoji-auto.on{background:var(--soft);color:var(--ink)}
@@ -208,9 +217,11 @@ dialog .row .btn{width:auto}
       <span class="emoji-val" id="ceval">🌸</span>
       <span class="emoji-hint" id="cehint">Automático</span>
     </button>
-    <div class="emoji-pop" id="cepop" hidden aria-label="Emojis">
-      <button type="button" class="emoji-auto">Automático (pelo nome)</button>
-      <div class="emoji-grid" id="cegrid"></div>
+    <div class="emoji-pop" id="cepop" aria-label="Emojis">
+      <div class="emoji-pop-inner">
+        <button type="button" class="emoji-auto">Automático (pelo nome)</button>
+        <div class="emoji-grid" id="cegrid"></div>
+      </div>
     </div>
   </div>
   <input id="cc" type="color" value="#ffd6e7" aria-label="Cor da categoria">
@@ -308,8 +319,8 @@ function renderEmoji(){
 }
 function popEmoji(open){
   const pop=$('#cepop');
-  if(open===undefined)open=pop.hidden;
-  pop.hidden=!open;
+  if(open===undefined)open=!pop.classList.contains('open');
+  pop.classList.toggle('open',open);
   $('#cepick').setAttribute('aria-expanded',String(open));
   if(open)(pop.querySelector('.emoji-grid button[aria-pressed="true"]')||pop.querySelector('.emoji-auto')).focus();
 }
@@ -317,7 +328,7 @@ $('#cepick').onclick=()=>popEmoji();
 $('#cepop').querySelector('.emoji-auto').onclick=()=>{$('#ce').value='';renderEmoji();popEmoji(false);$('#cepick').focus()};
 $('#cegrid').onclick=e=>{const b=e.target.closest('button[data-em]');if(!b)return;$('#ce').value=b.dataset.em;renderEmoji();popEmoji(false);$('#cepick').focus()};
 document.addEventListener('click',e=>{if(!e.target.closest('.emoji-field'))popEmoji(false)});
-dcat.addEventListener('cancel',e=>{if(!$('#cepop').hidden){e.preventDefault();popEmoji(false)}});
+dcat.addEventListener('cancel',e=>{if($('#cepop').classList.contains('open')){e.preventDefault();popEmoji(false)}});
 /* --- fim teclado --- */
 
 const svg=(d,w=16)=>`<svg viewBox="0 0 24 24" width="${w}" height="${w}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
