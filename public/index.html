@@ -225,7 +225,6 @@ dialog .row .btn{width:auto}
       </div>
     </div>
   </div>
-  <input id="cc" type="color" value="#ffd6e7" aria-label="Cor da categoria">
   <div class="row">
     <button class="btn" id="csave">Salvar categoria</button>
     <button class="btn ghost" id="cdel">Excluir</button>
@@ -413,7 +412,6 @@ function editCat(id){
   ecat=id||0;
   $('#cn').value=c.name||'';
   $('#ce').value=id?(c.emoji||''):'';   // vazio = automático, calculado pelo nome
-  $('#cc').value=c.color||'#ffd6e7';
   $('#cdel').hidden=!id;
   renderEmoji();                        // editar preserva o emoji salvo
   dcat.showModal();$('#cn').focus();
@@ -427,7 +425,7 @@ $('#csave').onclick=async()=>{
   if(!name)return $('#cn').focus();
   const emoji=$('#ce').value.trim()||emojiDoNome(name);
   try{
-    await api('cat_save',{id:ecat,name,emoji,color:$('#cc').value});
+    await api('cat_save',{id:ecat,name,emoji});
     dcat.close();await loadCats();await list();
   }catch(e){}
 };

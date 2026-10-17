@@ -39,6 +39,8 @@ ALTER TABLE categories ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL 
 ALTER TABLE topics     ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
 -- parent_id nunca foi usado pelo app; subcategorias não existem.
 ALTER TABLE categories DROP COLUMN IF EXISTS parent_id;
+-- A cor das categorias é fixa na paleta do app (a opção saiu da interface).
+UPDATE categories SET color = '#ffd6e7' WHERE color <> '#ffd6e7';
 
 CREATE INDEX IF NOT EXISTS topics_tsv_idx      ON topics USING gin (tsv);
 CREATE INDEX IF NOT EXISTS topics_category_idx ON topics (category_id);

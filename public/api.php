@@ -191,17 +191,7 @@ function int_field(array $in, string $key, bool $required = true): int
     return $n;
 }
 
-/** Cor omitida usa o padrão; cor inválida é recusada (não trocamos a escolha do usuário em silêncio). */
-function valid_color(string $c): string
-{
-    if ($c === '') {
-        return '#ffd6e7';
-    }
-    if (preg_match('/^#[0-9a-fA-F]{6}$/', $c) !== 1) {
-        out(['erro' => 'campo_invalido', 'campo' => 'color'], 400);
-    }
-    return strtolower($c);
-}
+
 
 /** Emoji omitido usa o padrão; emoji com HTML/aspas é recusado. */
 function valid_emoji(string $e): string
@@ -463,17 +453,18 @@ try {
         case 'cat_save':
             $name  = str_field($in, 'name', 80);
             $emoji = valid_emoji(str_field($in, 'emoji', 32, false));
-            $color = valid_color(str_field($in, 'color', 32, false));
             $id    = int_field($in, 'id', false);
+            // A cor é fixa na paleta do app: o banco aplica o default e a
+            // coluna não é mais escrita, então clientes antigos não a alteram.
             if ($id > 0) {
                 if (!category_exists($id)) {
                     out(['erro' => 'nao_encontrado'], 404);
                 }
-                q('update categories set name = ?, emoji = ?, color = ? where id = ?', [$name, $emoji, $color, $id]);
+                q('update categories set name = ?, emoji = ?, color = default where id = ?', [$name, $emoji, $id]);
             } else {
                 $id = (int) q(
-                    'insert into categories (name, emoji, color) values (?, ?, ?) returning id',
-                    [$name, $emoji, $color]
+                    'insert into categories (name, emoji) values (?, ?) returning id',
+                    [$name, $emoji]
                 )->fetchColumn();
             }
             out(['ok' => 1, 'id' => $id]);
