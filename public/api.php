@@ -617,9 +617,33 @@ try {
             if (!$row) {
                 out(['erro' => 'nao_encontrado'], 404);
             }
+            // Leitura de verdade conta para os "mais acessados"; quem grava o
+            // tópico e reaproveita esta resposta manda hit=0.
+            if (($_GET['hit'] ?? '') === '1') {
+                q(
+                    'insert into topic_hits (topic_id, hits, last_at) values (?, 1, now())
+                     on conflict (topic_id) do update set hits = topic_hits.hits + 1, last_at = now()',
+                    [$id]
+                );
+            }
             $row['id'] = (int) $row['id'];
             $row['category_id'] = (int) $row['category_id'];
             out($row);
+
+        // Home: os tópicos abertos com mais frequência (desempate pelo mais recente).
+        case 'frequent':
+            $lim = isset($_GET['limit']) ? (int) $_GET['limit'] : 20;
+            $lim = max(1, min(TOPICS_LIMIT_MAX, $lim));
+            out(q(
+                'select t.id, t.title, t.created_at, t.updated_at, c.name as cat, c.emoji, c.color
+                   from topic_hits h
+                   join topics t on t.id = h.topic_id
+                   join categories c on c.id = t.category_id
+                  where t.deleted_at is null
+                  order by h.hits desc, h.last_at desc
+                  limit ?',
+                [$lim]
+            )->fetchAll());
 
         case 'topic_save':
             $title   = str_field($in, 'title', 200);

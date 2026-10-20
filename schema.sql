@@ -69,3 +69,14 @@ CREATE TABLE IF NOT EXISTS login_attempts (
 );
 
 CREATE INDEX IF NOT EXISTS login_attempts_ip_at_idx ON login_attempts (ip, at DESC);
+
+-- Quantas vezes cada tópico foi aberto: alimenta a home ("mais acessados").
+-- Fica em tabela separada de propósito: incrementar um contador em topics
+-- dispararia o trigger de updated_at e o tópico pareceria "editado".
+CREATE TABLE IF NOT EXISTS topic_hits (
+  topic_id int PRIMARY KEY REFERENCES topics(id) ON DELETE CASCADE,
+  hits     int NOT NULL DEFAULT 0 CHECK (hits >= 0),
+  last_at  timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS topic_hits_rank_idx ON topic_hits (hits DESC, last_at DESC);

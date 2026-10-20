@@ -6,6 +6,7 @@ Feito para rodar em um servidor próprio, sem Docker e sem dependências além d
 
 ## Como funciona
 
+- **Início**: ao entrar, o app abre nos **tópicos mais acessados** (até 20, com o rótulo discreto "Mais acessados") em vez da lista completa — clicar em **"Caderninho"** no canto superior esquerdo volta para essa tela de qualquer lugar. Enquanto nenhum tópico foi aberto, a home mostra só a saudação **"Oimô"** no meio da área. Clicar em **"Tudo"** continua mostrando todos os tópicos, e a **busca na home varre o acervo inteiro**, não só a lista de frequentes.
 - **Categorias** com nome e emoji (a cor é fixa na paleta do app); o emoji é calculado a partir do nome (dicionário de termos contábeis, com fallback determinístico) e pode ser trocado num seletor de emojis; cada tópico pertence a uma categoria.
 - **Tópicos** com título e corpo em HTML leve, com negrito, itálico, títulos, listas e imagens; `Enter` abre um parágrafo novo e `Shift+Enter` quebra a linha dentro do mesmo parágrafo (o corpo guarda `<p>`, `<div>` e `<br>`, então as quebras sobrevivem ao salvar); a criação/edição abre em tela cheia (título, categoria e ações no topo, texto numa coluna de leitura).
 - **Lixeira**: excluir um tópico pede o título digitado como confirmação e o manda para a lixeira, onde ele fica **30 dias** (o próprio diálogo explica o prazo). Na lixeira dá para **restaurar** — escolhendo a categoria de destino — ou **excluir de vez**, com aviso de ação destrutiva e o título digitado de novo. Depois dos 30 dias o tópico (e as imagens que só ele usava) é apagado automaticamente.
@@ -215,7 +216,8 @@ Todas as respostas são JSON. Leitura por `GET`, escrita por `POST` (com `X-CSRF
 | `cat_save` | POST | `{"id"?, "name", "emoji"}` (a cor não é editável) |
 | `cat_del` | POST | `{"id"}` (apaga os tópicos junto) |
 | `topics` | GET | `?cat=&q=&limit=&offset=` |
-| `topic` | GET | `?id=` |
+| `frequent` | GET | `?limit=` (padrão 20) — tópicos mais abertos |
+| `topic` | GET | `?id=` e `&hit=1` quando a abertura deve contar para os mais acessados |
 | `topic_save` | POST | `{"id"?, "title", "category_id", "body"}` |
 | `topic_del` | POST | `{"id"}` |
 | `upload` | POST | multipart `f` (JPG, PNG, WEBP, GIF) |
@@ -287,6 +289,7 @@ O backup manual (sem o timer) continua possível: `sudo APP_DIR=/var/www/caderni
 - **Excluir a categoria apaga para sempre** os tópicos dela, inclusive os que estavam na lixeira — a lixeira não protege contra exclusão de categoria.
 - **Backup no mesmo servidor**: os pacotes ficam em `/var/backups/caderninho`, no mesmo disco do banco — protege de erro humano, não de perda da máquina; a cópia para fora é manual.
 - **Backup diário, sem point-in-time**: mudanças feitas depois das 03:17 só existem no pacote do dia seguinte.
+- **"Mais acessados" conta aberturas, sem decaimento**: o que foi muito lido meses atrás continua no topo até algo mais ser aberto; editar um tópico não conta, e criar/salvar também não (só abrir pela lista ou pela busca).
 - **Sem suíte de testes automatizados** no repositório.
 
 ## Licença
