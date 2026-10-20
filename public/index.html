@@ -10,7 +10,7 @@
 <style>
 :root{
   --bg:#fbf7fa;--surface:#fff;--ink:#4a3a5e;--ink-2:#7b6b90;
-  --acc:#ff78b4;--acc-2:#c7346d;--soft:#f1e9ff;--line:#ecdfe8;
+  --acc:#ff78b4;--acc-2:#c7346d;--soft:#f1e9ff;--line:#ecdfe8;--cat:#ffd6e7;
   --r-sm:10px;--r:14px;--r-lg:18px;
   --shadow:0 1px 2px rgba(74,58,94,.05),0 10px 30px rgba(74,58,94,.06);
 }
@@ -66,8 +66,8 @@ main{flex:1;min-width:0;padding:28px 32px}
 /* ---------- categorias ---------- */
 .cat{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:var(--r-sm);cursor:pointer;
   border:1px solid transparent;background:#fff;font-size:14.5px;
-  background:color-mix(in srgb,var(--c,#f1e9ff) 18%,#fff);transition:background .15s,box-shadow .15s}
-.cat:hover{background:color-mix(in srgb,var(--c,#f1e9ff) 30%,#fff)}
+  background:color-mix(in srgb,var(--c,var(--cat)) 18%,#fff);transition:background .15s,box-shadow .15s}
+.cat:hover{background:color-mix(in srgb,var(--c,var(--cat)) 30%,#fff)}
 .cat.on{box-shadow:inset 2px 0 0 rgba(255,120,180,.7)}  /* fundo igual ao dos demais */
 .cat.on .name{font-weight:600}
 .cat>svg{width:15px;height:15px;flex-shrink:0;color:var(--ink-2)}
@@ -77,7 +77,7 @@ main{flex:1;min-width:0;padding:28px 32px}
 .cat i{display:flex;align-items:center;color:var(--ink-2);opacity:0;transition:opacity .15s}
 .cat i svg{pointer-events:none}
 .cat:hover i,.cat:focus-within i{opacity:1}
-@media(hover:none){.cat i{opacity:1}.cat:hover{background:color-mix(in srgb,var(--c,#f1e9ff) 18%,#fff)}}
+@media(hover:none){.cat i{opacity:1}.cat:hover{background:color-mix(in srgb,var(--c,var(--cat)) 18%,#fff)}}
 
 /* ---------- cartões ---------- */
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px}
