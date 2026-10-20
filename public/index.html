@@ -213,8 +213,10 @@ dialog .row .btn{width:auto}
 .itext-bar .move{cursor:grab;color:var(--ink-2);display:inline-flex;align-items:center}
 .itext-bar .move:active{cursor:grabbing}
 .itext-bar .fs{display:flex;align-items:center;gap:4px;font:600 12px Inter,sans-serif;color:var(--ink-2)}
-.itext-bar .fs input{width:56px;padding:3px 4px;border:1px solid var(--line);border-radius:6px;
-  font:600 13px Inter,sans-serif;color:var(--ink);text-align:center;background:var(--surface)}
+/* margin/altura fixos para ficar na mesma linha de centro dos demais botões */
+.itext-bar .fs input{width:56px;height:22px;margin:0;padding:0 4px;border:1px solid var(--line);
+  border-radius:6px;font:600 13px Inter,sans-serif;line-height:20px;color:var(--ink);
+  text-align:center;background:var(--surface)}
 .itext-bar .fs input:focus{outline:0;border-color:var(--acc);box-shadow:0 0 0 2px rgba(255,120,180,.26)}
 .itext-bar .bgrp button{width:18px;height:18px;padding:0;border-radius:50%;
   background:var(--bgc,#fff);box-shadow:0 0 0 1px rgba(74,58,94,.28)}
@@ -684,8 +686,16 @@ function wrapLines(c,text,maxW){
     for(const word of par.split(/\s+/)){
       if(!word)continue;
       const t=line?line+' '+word:word;
-      if(line&&c.measureText(t).width>maxW){out.push(line);line=word}
-      else line=t;
+      if(c.measureText(t).width<=maxW){line=t;continue}
+      if(line){out.push(line);line=''}
+      if(c.measureText(word).width<=maxW){line=word;continue}
+      /* palavra maior que a caixa: quebra por caractere, como o campo faz */
+      let chunk='';
+      for(const ch of word){
+        if(chunk&&c.measureText(chunk+ch).width>maxW){out.push(chunk);chunk=ch}
+        else chunk+=ch;
+      }
+      line=chunk;
     }
     out.push(line);
   }
@@ -819,11 +829,32 @@ function applyFont(px){
   const k=icv.clientWidth/icrop.w;
   itxt.style.font=textFont(px*k);
   itxt.style.padding=Math.round(px*k*.35)+'px '+Math.round(px*k*.45)+'px';
+  autoGrow();
   layoutBar();
+}
+/* enquanto digita, a caixa cresce em altura para o texto caber; nunca fica menor
+   que a área demarcada e, ao encostar no rodapé da imagem, sobe em vez de cortar */
+function autoGrow(){
+  if(!itbox||ibox.hidden)return;
+  const k=icv.clientWidth/icrop.w;
+  /* mede o conteúdo com altura zero: scrollHeight nunca reporta menos que a
+     altura atual, e sem isso a caixa nunca encolheria ao apagar */
+  const prev=itxt.style.height;
+  itxt.style.height='0px';
+  const need=itxt.scrollHeight/k;
+  itxt.style.height=prev;
+  let h=Math.max(itbox.minH||itbox.h,need);
+  h=Math.min(h,icrop.h);
+  if(h>icrop.y+icrop.h-itbox.y)itbox.y=Math.max(icrop.y,icrop.y+icrop.h-h);
+  if(Math.abs(h-itbox.h)>0.4){
+    itbox.h=h;
+    placeBox();
+    layoutBar();
+  }
 }
 function openTextBox(r){
   const k=icv.clientWidth/icrop.w;
-  itbox={x:r.x,y:r.y,w:Math.max(28,r.w),h:Math.max(22,r.h),size:fontPx(),bg:ibg};
+  itbox={x:r.x,y:r.y,w:Math.max(28,r.w),h:Math.max(22,r.h),minH:Math.max(22,r.h),size:fontPx(),bg:ibg};
   itxt.value='';
   itxt.style.font=textFont(itbox.size*k);
   itxt.style.lineHeight='1.3';
@@ -876,6 +907,7 @@ function onMove(e){
   itbox.x=Math.round(Math.max(icrop.x,Math.min((e.clientX-r.left)*k-imove.dx,icrop.x+icrop.w-itbox.w)));
   itbox.y=Math.round(Math.max(icrop.y,Math.min((e.clientY-r.top)*k-imove.dy,icrop.y+icrop.h-itbox.h)));
   placeBox();
+  autoGrow();
   layoutBar();
 }
 function endMove(){imove=null}
@@ -889,6 +921,7 @@ itxt.addEventListener('keydown',e=>{
   if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();commitText(false)}
 });
 /* sair do campo confirma, mas focar a barra (campo de px) não pode confirmar */
+itxt.addEventListener('input',()=>autoGrow());
 itxt.addEventListener('blur',()=>{
   setTimeout(()=>{
     const a=document.activeElement;
