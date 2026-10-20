@@ -99,7 +99,7 @@ main{flex:1;min-width:0;padding:28px 32px}
 .doc h1{font-size:31px;line-height:1.22;margin:10px 0 6px}
 .doc .meta{color:var(--ink-2);font-size:13px}
 .doc .body{margin-top:18px}
-.doc .body p{margin:0 0 12px}
+.doc .body p,.doc .body div{margin:0 0 12px}
 .doc .body h2{font-size:20px;margin:24px 0 8px}
 .doc .body img{display:block;max-width:100%;margin:12px 0;border-radius:10px;border:1px solid var(--line)}
 .doc .body a{color:var(--acc-2);text-decoration:underline;text-underline-offset:2px;word-break:break-word}
@@ -149,6 +149,7 @@ dialog .row .btn{width:auto}
 #ed:focus{border-color:var(--acc);box-shadow:0 0 0 3px rgba(255,120,180,.26)}
 #ed:empty:before{content:attr(data-ph);color:#a996b8}
 #ed img{max-width:100%;margin:8px 0;border-radius:10px}
+#ed p,#ed div{margin:0 0 2px}
 #ed a{color:var(--acc-2);text-decoration:underline;text-underline-offset:2px;cursor:pointer}
 
 /* ---------- editor de tópico em tela cheia ---------- */
@@ -601,6 +602,9 @@ document.querySelectorAll('.tb [data-c]').forEach(b=>b.onclick=()=>{
   $('#ed').focus();
 });
 
+/* Enter cria <p> (e não <div>), que é o que o corpo do tópico guarda e estiliza */
+try{document.execCommand('defaultParagraphSeparator',false,'p')}catch(e){}
+
 /* ---------- links: o endereço digitado vira <a> ao concluir a palavra ---------- */
 const URL_RE=/(?:https?:\/\/|www\.)[^\s<>"']+/gi;
 /* endereço absoluto de um endereço digitado: "www.x.com" abre em https */
@@ -708,9 +712,30 @@ $('#ed').addEventListener('input',e=>{
   soltaLinkContinuado($('#ed'));   // texto colado no fim do link volta a ser um só
   unlinkEditado($('#ed'));         // link cujo texto mudou deixa de valer
   const t=e.inputType||'';
-  if(t==='insertFromPaste'||t==='insertParagraph'||t==='insertLineBreak'
+  // quebra de linha fica de fora de propósito: repor o caret por deslocamento de
+  // texto na linha recém-criada devolveria o cursor para a linha anterior
+  if(t==='insertFromPaste'
      ||(t==='insertText'&&(e.data===' '||e.data==='\u00a0')))linkifyEd();
 });
+/* o navegador deixa a primeira linha como texto solto e as seguintes em <p>;
+   no corpo vai tudo dentro de parágrafo, senão a leitura perde o espaçamento
+   entre as linhas e a busca não separa as palavras de blocos vizinhos */
+const INLINE_ED=/^(A|B|STRONG|I|EM|U|BR|IMG|SPAN)$/;
+function corpoDoEditor(){
+  const out=document.createElement('div');
+  let p=null;
+  for(const n of [...$('#ed').childNodes]){
+    const inline=n.nodeType===3?(!!n.nodeValue.trim()):(n.nodeType===1&&INLINE_ED.test(n.tagName));
+    if(inline){
+      if(!p){p=document.createElement('p');out.appendChild(p)}
+      p.appendChild(n.cloneNode(true));
+    }else{
+      p=null;
+      if(n.nodeType===1)out.appendChild(n.cloneNode(true));
+    }
+  }
+  return out.innerHTML;
+}
 /* no editor o clique normal posiciona o cursor; Ctrl/Cmd+clique abre o link */
 $('#ed').addEventListener('click',e=>{
   const a=e.target.closest&&e.target.closest('a');
@@ -1219,7 +1244,7 @@ $('#tsave').onclick=async()=>{
   if(!$('#tt').value.trim())return $('#tt').focus();
   linkifyEd();   // garante âncora mesmo se o link foi colado inteiro
   try{
-    const r=await api('topic_save',{id:eid,title:$('#tt').value,category_id:$('#tc').value,body:$('#ed').innerHTML});
+    const r=await api('topic_save',{id:eid,title:$('#tt').value,category_id:$('#tc').value,body:corpoDoEditor()});
     dtopic.close();toast('Tópico salvo.');await loadCats();await show(r.id);
   }catch(e){}
 };

@@ -82,7 +82,9 @@ const TOPICS_LIMIT_MAX   = 200;
 const LOGIN_MAX_ATTEMPTS = 8;
 const LOGIN_WINDOW_MIN   = 15;
 
-const ALLOWED_TAGS = ['p', 'br', 'b', 'strong', 'i', 'em', 'u', 'h2', 'h3', 'ul', 'ol', 'li', 'img', 'a'];
+// div entra na lista porque é o parágrafo que o navegador cria ao colar HTML
+// pronto; sem ele a quebra de linha do texto colado desaparecia.
+const ALLOWED_TAGS = ['p', 'div', 'br', 'b', 'strong', 'i', 'em', 'u', 'h2', 'h3', 'ul', 'ol', 'li', 'img', 'a'];
 // Tags removidas junto com o conteúdo: nada aqui pode virar script/iframe/objeto.
 const DROP_TAGS = [
     'script', 'style', 'iframe', 'frame', 'frameset', 'object', 'embed', 'applet',
