@@ -467,6 +467,10 @@ dialog .row .btn{width:auto}
       <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7V5h16v2"/><path d="M12 5v14"/><path d="M9 19h6"/></svg>
       Texto
     </button>
+    <button id="icensor" type="button" aria-pressed="false" title="Censura (arraste para esconder o que está atrás)">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="6" height="6"/><rect x="12" y="4" width="9" height="6"/><rect x="3" y="13" width="9" height="7"/><rect x="15" y="13" width="6" height="7"/></svg>
+      Censura
+    </button>
     <span class="sep" aria-hidden="true"></span>
     <span id="icolors" role="group" aria-label="Cor do traço">
       <button class="sw" type="button" data-c="#c7346d" style="--sw:#c7346d" title="Rosa" aria-label="Rosa" aria-pressed="true"></button>
@@ -1014,7 +1018,7 @@ function insertImg(url){
 const dimg=$('#dimg'),icv=$('#icv'),ictx=icv.getContext('2d'),itxt=$('#itxt'),ibox=$('#ibox');
 const IMAX=2400;   // lado maior do que vai para o servidor, em pixels
 let iimg=null,iurl=null,icrop=null,istr=[],ihist=[],itool='crop',icolor='#c7346d',iw=5,idpr=1;
-let isel=null,istrAtual=null,iarrow=null,itextDrag=null,itbox=null,isavedRange=null;
+let isel=null,istrAtual=null,iarrow=null,itextDrag=null,icensorDrag=null,itbox=null,isavedRange=null;
 let ifont=0,ibg='rgba(255,255,255,.62)',imove=null;
 
 /* o <dialog> é modal: o cursor do texto se perde ao abrir, então guardamos a
@@ -1039,7 +1043,7 @@ function openImg(f){
   const im=new Image();
   im.onload=()=>{
     iimg=im;icrop={x:0,y:0,w:im.naturalWidth,h:im.naturalHeight};
-    istr=[];ihist=[];isel=null;istrAtual=null;iarrow=null;
+    istr=[];ihist=[];isel=null;istrAtual=null;iarrow=null;icensorDrag=null;
     ibox.hidden=true;itxt.value='';itbox=null;itextDrag=null;$('#ibar').hidden=true;
     setTool('crop');
     dimg.showModal();requestAnimationFrame(fit);
@@ -1108,11 +1112,30 @@ function drawTextBox(c,s,crop,k){
   lines.forEach((ln,i)=>c.fillText(ln,x+padX,startY+i*lh));
 }
 
+/* censura: o retângulo recebe blocos grandes tirados da própria imagem,
+   ampliados sem suavização — de perto não dá para reconstruir o que escondia */
+function drawCensor(c,r,crop,k){
+  const x=(r.x-crop.x)*k,y=(r.y-crop.y)*k,w=r.w*k,h=r.h*k;
+  if(!iimg||w<1||h<1)return;
+  const bloco=Math.max(4,Math.round(Math.max(w,h)/16));   // ~16 blocos no lado maior
+  const sw=Math.max(1,Math.round(w/bloco)),sh=Math.max(1,Math.round(h/bloco));
+  const off=document.createElement('canvas');
+  off.width=sw;off.height=sh;
+  const oc=off.getContext('2d');
+  oc.imageSmoothingEnabled=false;
+  oc.drawImage(iimg,r.x,r.y,Math.max(1,r.w),Math.max(1,r.h),0,0,sw,sh);
+  c.save();
+  c.imageSmoothingEnabled=false;
+  c.drawImage(off,0,0,sw,sh,x,y,w,h);
+  c.restore();
+}
+
 function paint(c,s,crop,k){
   const w=Math.max(1,s.w*k);
   c.strokeStyle=s.color;c.fillStyle=s.color;
   c.lineCap='round';c.lineJoin='round';
   if(s.kind==='text'){drawTextBox(c,s,crop,k);return}
+  if(s.kind==='censor'){drawCensor(c,s,crop,k);return}
   if(s.kind==='arrow'){
     const x1=(s.a.x-crop.x)*k,y1=(s.a.y-crop.y)*k;
     const x2=(s.b.x-crop.x)*k,y2=(s.b.y-crop.y)*k;
@@ -1149,6 +1172,13 @@ function render(){
   ictx.lineCap='round';ictx.lineJoin='round';
   for(const s of istr)paint(ictx,s,icrop,k);
   if(iarrow)paint(ictx,{kind:'arrow',color:iarrow.color,w:iarrow.w,a:iarrow.a,b:iarrow.b},icrop,k);
+  if(icensorDrag){
+    const r=normSel(icensorDrag);
+    paint(ictx,{kind:'censor',x:r.x,y:r.y,w:r.w,h:r.h},icrop,k);
+    ictx.strokeStyle='#ff78b4';ictx.lineWidth=1.5;ictx.setLineDash([6,4]);
+    ictx.strokeRect((r.x-icrop.x)*k,(r.y-icrop.y)*k,r.w*k,r.h*k);
+    ictx.setLineDash([]);
+  }
   if(isel){
     const r=normSel(isel);
     ictx.fillStyle='rgba(74,58,94,.34)';
@@ -1186,12 +1216,13 @@ const IHINT={
   crop:'Arraste sobre a imagem para recortar',
   pen:'Desenhe sobre a imagem',
   arrow:'Arraste para desenhar a flecha',
-  text:'Arraste para marcar a área do texto'
+  text:'Arraste para marcar a área do texto',
+  censor:'Arraste sobre o que deve ser escondido'
 };
 function setTool(t){
   commitText(false);
   itool=t;
-  const ids={crop:'#icrop',pen:'#ipen',arrow:'#iarrow',text:'#itext'};
+  const ids={crop:'#icrop',pen:'#ipen',arrow:'#iarrow',text:'#itext',censor:'#icensor'};
   for(const k in ids)$(ids[k]).setAttribute('aria-pressed',String(k===t));
   icv.style.cursor=t==='pen'?'cell':'crosshair';
   $('#ihint').textContent=IHINT[t];
@@ -1359,6 +1390,7 @@ icv.addEventListener('pointerdown',e=>{
   const p=posOf(e);
   try{icv.setPointerCapture(e.pointerId)}catch(err){}
   if(itool==='text'){itextDrag={x0:p.x,y0:p.y,x1:p.x,y1:p.y};render();return}
+  if(itool==='censor'){icensorDrag={x0:p.x,y0:p.y,x1:p.x,y1:p.y};render();return}
   if(itool==='crop')isel={x0:p.x,y0:p.y,x1:p.x,y1:p.y};
   else if(itool==='arrow')iarrow={color:icolor,w:iw,a:p,b:p};
   else{ihist.push({kind:'pen'});istrAtual={kind:'pen',color:icolor,w:iw,pts:[p]};istr.push(istrAtual)}
@@ -1368,10 +1400,20 @@ icv.addEventListener('pointermove',e=>{
   if(!icrop)return;
   if(isel){const p=posOf(e);isel.x1=p.x;isel.y1=p.y;render()}
   else if(itextDrag){const p=posOf(e);itextDrag.x1=p.x;itextDrag.y1=p.y;render()}
+  else if(icensorDrag){const p=posOf(e);icensorDrag.x1=p.x;icensorDrag.y1=p.y;render()}
   else if(iarrow){iarrow.b=posOf(e);render()}
   else if(istrAtual){istrAtual.pts.push(posOf(e));render()}
 });
 function endStroke(commit){
+  if(icensorDrag){
+    const r=normSel(icensorDrag);icensorDrag=null;
+    if(commit&&r.w>=8&&r.h>=8){
+      ihist.push({kind:'censor'});
+      istr.push({kind:'censor',x:r.x,y:r.y,w:r.w,h:r.h});
+    }
+    render();
+    return;
+  }
   if(itextDrag){
     const r=normSel(itextDrag);itextDrag=null;
     if(commit){
@@ -1406,6 +1448,7 @@ $('#icrop').onclick=()=>setTool('crop');
 $('#ipen').onclick=()=>setTool('pen');
 $('#iarrow').onclick=()=>setTool('arrow');
 $('#itext').onclick=()=>setTool('text');
+$('#icensor').onclick=()=>setTool('censor');
 $('#icolors').onclick=e=>{
   const b=e.target.closest('[data-c]');if(!b)return;
   icolor=b.dataset.c;
@@ -1438,7 +1481,7 @@ document.addEventListener('keydown',e=>{
 $('#icancel').onclick=()=>dimg.close();
 dimg.addEventListener('close',()=>{
   if(iurl){URL.revokeObjectURL(iurl);iurl=null}
-  iimg=null;icrop=null;istr=[];ihist=[];isel=null;istrAtual=null;iarrow=null;
+  iimg=null;icrop=null;istr=[];ihist=[];isel=null;istrAtual=null;iarrow=null;icensorDrag=null;
   ibox.hidden=true;itxt.value='';itbox=null;itextDrag=null;imove=null;$('#ibar').hidden=true;
 });
 window.addEventListener('resize',()=>{if(dimg.open&&iimg){commitText(false);fit()}});
