@@ -11,7 +11,7 @@ Feito para rodar em um servidor próprio, sem Docker e sem dependências além d
 - **Links** digitados no tópico (`https://…` ou `www.…`) viram âncoras ao concluir a palavra, colar ou salvar; abrem em nova aba ao clicar no tópico (`Ctrl`+clique dentro do editor). Corrigir o endereço desfaz a âncora e ela é refeita com o destino novo.
 - **Busca** full-text em português com `unaccent` (buscar "orcamento" encontra "Orçamento") e por prefixo de palavra.
 - **Imagens** coladas com `Ctrl+V` ou enviadas pelo botão 📷 abrem antes num editor em tela cheia, onde dá para recortar (arrastando sobre a imagem), desenhar à mão, traçar flechas e escrever texto por cima (arraste para demarcar a área da caixa de texto, que pode ser movida depois pela moldura ou pela alça da barra; acima dela ficam o tamanho da fonte em px e o fundo, branco translúcido por padrão; a caixa cresce em altura enquanto se digita, voltando ao tamanho demarcado ao apagar) — 5 cores, 3 espessuras e desfazer (botão ou `Ctrl+Z`); só o resultado é enviado e inserido no ponto do texto onde o cursor estava. Ao excluir um tópico, as imagens que ninguém mais usa são apagadas do disco.
-- **Login** por senha única, com limite de tentativas por IP e sessão em cookie `HttpOnly`/`SameSite=Lax`.
+- **Login** por senha única, com limite de tentativas por IP e sessão em cookie `HttpOnly`/`SameSite=Lax`; o ícone de sair ao lado de "Nova categoria" encerra a sessão no servidor (POST com token CSRF) e volta para a tela de senha.
 
 ## Requisitos
 

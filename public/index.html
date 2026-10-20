@@ -55,6 +55,9 @@ aside{width:268px;flex-shrink:0;padding:20px 16px;display:flex;flex-direction:co
   background:rgba(255,255,255,.72);backdrop-filter:blur(10px);border-right:1px solid var(--line)}
 .brand{display:flex;align-items:center;gap:10px;padding:0 6px 16px;border-bottom:1px solid var(--line)}
 .brand .brand-mark{width:25px;height:25px;flex-shrink:0}
+.cat-actions{display:flex;gap:8px}
+.cat-actions #newcat{flex:1}
+#logout{aspect-ratio:1;padding:0;display:grid;place-items:center;flex:0 0 auto}
 .wordmark{font-size:19px}
 nav{display:flex;flex-direction:column;gap:2px;overflow:auto;margin:14px 0 16px;flex:1}
 main{flex:1;min-width:0;padding:28px 32px}
@@ -273,7 +276,12 @@ dialog .row .btn{width:auto}
       <span class="wordmark">Caderninho</span>
     </div>
     <nav id="cats" aria-label="Categorias"></nav>
-    <button class="btn ghost" id="newcat">Nova categoria</button>
+    <div class="cat-actions">
+      <button class="btn ghost" id="newcat">Nova categoria</button>
+      <button class="btn ghost" id="logout" title="Sair da conta" aria-label="Sair da conta">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8"/><path d="M10 12h10"/><path d="m17 8 4 4-4 4"/></svg>
+      </button>
+    </div>
   </aside>
   <main>
     <div class="top">
@@ -567,6 +575,18 @@ function editCat(id){
   dcat.showModal();$('#cn').focus();
 }
 $('#newcat').onclick=()=>editCat(0);
+
+/* sair: encerra a sessão no servidor e volta para a tela de senha */
+$('#logout').onclick=async()=>{
+  const b=$('#logout');if(b.disabled)return;b.disabled=true;
+  try{await api('logout',{})}
+  catch(e){}                      // sessão já caída: o efeito é o mesmo
+  finally{b.disabled=false}
+  csrf='';cats=[];cur=0;
+  $('#cats').innerHTML='';$('#view').innerHTML='';$('#busca').value='';
+  $('#app').hidden=true;$('#login').hidden=false;$('#senha').value='';
+  toast('Sessão encerrada.');$('#senha').focus();
+};
 $('#ccancel').onclick=()=>dcat.close();
 dcat.addEventListener('close',()=>popEmoji(false));
 $('#cn').oninput=()=>renderEmoji();

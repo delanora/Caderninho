@@ -475,6 +475,26 @@ try {
         out(['erro' => 'senha'], 401);
     }
 
+    if ($a === 'logout') {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            out(['erro' => 'metodo'], 405);   // sair só por POST (com token CSRF)
+        }
+        $_SESSION = [];
+        if ((int) ini_get('session.use_cookies') === 1) {
+            $p = session_get_cookie_params();
+            setcookie(session_name(), '', [
+                'expires'  => time() - 42000,
+                'path'     => $p['path'],
+                'domain'   => $p['domain'],
+                'secure'   => $p['secure'],
+                'httponly' => $p['httponly'],
+                'samesite' => 'Lax',
+            ]);
+        }
+        session_destroy();
+        out(['ok' => 1]);
+    }
+
     if (empty($_SESSION['ok'])) {
         out(['erro' => 'auth'], 401);
     }
