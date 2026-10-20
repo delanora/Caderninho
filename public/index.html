@@ -371,7 +371,7 @@ dialog .row .btn{width:auto}
       <button class="sz" type="button" data-w="5" title="Traço médio" aria-label="Traço médio" aria-pressed="true"><i style="width:9px;height:9px"></i></button>
       <button class="sz" type="button" data-w="10" title="Traço grosso" aria-label="Traço grosso" aria-pressed="false"><i style="width:14px;height:14px"></i></button>
     </span>
-    <button id="iundo" type="button" title="Desfazer o último passo">Desfazer</button>
+    <button id="iundo" type="button" title="Desfazer o último passo (Ctrl+Z)">Desfazer</button>
   </div>
   <div class="img-stage">
     <div class="img-frame">
@@ -1030,14 +1030,24 @@ $('#isizes').onclick=e=>{
   iw=+b.dataset.w;
   $('#isizes').querySelectorAll('[data-w]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));
 };
-$('#iundo').onclick=()=>{
+function undo(){
   commitText(false);
   const h=ihist.pop();
   if(!h)return toast('Nada para desfazer.');
   if(h.kind==='crop'){icrop=h.prev;isel=null;iarrow=null;fit()}
   else istr.pop();
   render();
-};
+}
+$('#iundo').onclick=undo;
+/* Ctrl/Cmd+Z desfaz como o botão. Com a caixa de texto aberta o atalho fica com o
+   navegador, que é quem desfaz a digitação dentro do campo. */
+document.addEventListener('keydown',e=>{
+  if(!dimg.open||!ibox.hidden)return;
+  if(!(e.ctrlKey||e.metaKey)||e.shiftKey)return;
+  if(e.key!=='z'&&e.key!=='Z')return;
+  e.preventDefault();
+  undo();
+});
 $('#icancel').onclick=()=>dimg.close();
 dimg.addEventListener('close',()=>{
   if(iurl){URL.revokeObjectURL(iurl);iurl=null}
