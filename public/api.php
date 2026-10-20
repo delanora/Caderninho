@@ -618,13 +618,19 @@ try {
                 out(['erro' => 'nao_encontrado'], 404);
             }
             // Leitura de verdade conta para os "mais acessados"; quem grava o
-            // tópico e reaproveita esta resposta manda hit=0.
+            // tópico e reaproveita esta resposta manda hit=0. A contagem é
+            // acessório: se falhar (permissão, tabela ausente em banco antigo),
+            // o tópico abre do mesmo jeito e o erro vai só para o log.
             if (($_GET['hit'] ?? '') === '1') {
-                q(
-                    'insert into topic_hits (topic_id, hits, last_at) values (?, 1, now())
-                     on conflict (topic_id) do update set hits = topic_hits.hits + 1, last_at = now()',
-                    [$id]
-                );
+                try {
+                    q(
+                        'insert into topic_hits (topic_id, hits, last_at) values (?, 1, now())
+                         on conflict (topic_id) do update set hits = topic_hits.hits + 1, last_at = now()',
+                        [$id]
+                    );
+                } catch (Throwable $e) {
+                    error_log('caderninho: contador de acesso não gravou: ' . $e->getMessage());
+                }
             }
             $row['id'] = (int) $row['id'];
             $row['category_id'] = (int) $row['category_id'];

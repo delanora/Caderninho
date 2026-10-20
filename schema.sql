@@ -1,5 +1,7 @@
 -- Schema do Caderninho. Pode ser executado mais de uma vez com segurança.
 -- Requer PostgreSQL 12+ e a extensão unaccent.
+-- Aplique como o usuário do banco do app (é o que o install.sh faz): tabela
+-- criada por outro usuário fica sem permissão e o app responde 500.
 
 CREATE EXTENSION IF NOT EXISTS unaccent;
 

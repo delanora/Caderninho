@@ -271,7 +271,9 @@ O backup manual (sem o timer) continua possível: `sudo APP_DIR=/var/www/caderni
    PGPASSWORD='senha-do-banco' psql -h localhost -U caderninho -d caderninho -v ON_ERROR_STOP=1 -f schema.sql
    ```
 
-   Em bancos criados por versões anteriores isso adiciona `created_at`, `deleted_at` (a lixeira, com índice próprio), cria `login_attempts` e remove a coluna morta `parent_id`. Em banco novo, nada acontece.
+   Em bancos criados por versões anteriores isso adiciona `created_at`, `deleted_at` (a lixeira, com índice próprio), cria `login_attempts` e `topic_hits` (a home de mais acessados) e remove a coluna morta `parent_id`. Em banco novo, nada acontece.
+
+   Aplique **como o usuário do app** (`-U caderninho`), nunca como `postgres`: tabela criada por outro dono fica sem permissão para o app e cada acesso à home (ou abertura de tópico) responde "Erro interno". Se acontecer, corrija com `ALTER TABLE topic_hits OWNER TO caderninho;`.
 
 ## Limitações conhecidas
 
