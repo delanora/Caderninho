@@ -9,7 +9,7 @@ Feito para rodar em um servidor próprio, sem Docker e sem dependências além d
 - **Categorias** com nome e emoji (a cor é fixa na paleta do app); o emoji é calculado a partir do nome (dicionário de termos contábeis, com fallback determinístico) e pode ser trocado num seletor de emojis; cada tópico pertence a uma categoria.
 - **Tópicos** com título e corpo em HTML leve, com negrito, itálico, títulos, listas e imagens; a criação/edição abre em tela cheia (título, categoria e ações no topo, texto numa coluna de leitura).
 - **Busca** full-text em português com `unaccent` (buscar "orcamento" encontra "Orçamento") e por prefixo de palavra.
-- **Imagens** coladas com `Ctrl+V` ou enviadas pelo botão 📷 abrem antes num editor em tela cheia, onde dá para recortar (arrastando sobre a imagem), desenhar à mão, traçar flechas e escrever texto por cima — 5 cores, 3 espessuras e desfazer; só o resultado é enviado e inserido no ponto do texto onde o cursor estava. Ao excluir um tópico, as imagens que ninguém mais usa são apagadas do disco.
+- **Imagens** coladas com `Ctrl+V` ou enviadas pelo botão 📷 abrem antes num editor em tela cheia, onde dá para recortar (arrastando sobre a imagem), desenhar à mão, traçar flechas e escrever texto por cima (arraste para demarcar a área da caixa de texto; acima dela, botões de tamanho da fonte e de fundo, branco translúcido por padrão) — 5 cores, 3 espessuras e desfazer; só o resultado é enviado e inserido no ponto do texto onde o cursor estava. Ao excluir um tópico, as imagens que ninguém mais usa são apagadas do disco.
 - **Login** por senha única, com limite de tentativas por IP e sessão em cookie `HttpOnly`/`SameSite=Lax`.
 
 ## Requisitos
@@ -250,6 +250,7 @@ tar xzf uploads-AAAA-MM-DD.tar.gz -C /var/www/caderninho/public
 - **Senha única**, sem usuários, autorias ou auditoria.
 - **Upload de até 10 MB** (acima disso o PHP devolve 413 e a interface mostra o motivo).
 - **Imagem sempre vira PNG**: o ajuste acontece em `canvas` e é exportado como PNG com o lado maior limitado a 2400 px — GIF animado perde a animação e fotos grandes são reduzidas.
+- **Anotações são pintadas na imagem**: depois de confirmadas não dá para reeditar o texto — a caixa cresce em altura se o texto precisar de mais linhas que a área demarcada.
 - **Limite de login por IP**: atrás de proxy reverso todos os acessos compartilham o IP do proxy — ajuste `client_ip()` em `api.php` se for o caso.
 - **Editor usa `document.execCommand`**, obsoleto: funciona nos navegadores atuais, mas deve ser substituído por Markdown ou pela Selection API no futuro.
 - **Sem CSP na página HTML**: o `index.html` tem CSS/JS inline, o que exige `script-src 'unsafe-inline'`; para uma CSP restritiva seria preciso extrair `app.js`/`app.css` e trocar os `onclick` inline por listeners.

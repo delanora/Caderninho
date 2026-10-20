@@ -194,10 +194,28 @@ dialog .row .btn{width:auto}
 .img-hold{position:relative;display:inline-block;line-height:0}
 #icv{display:block;max-width:100%;max-height:100%;border-radius:var(--r-sm);background:var(--surface);
   box-shadow:0 1px 3px rgba(74,58,94,.16);touch-action:none;cursor:crosshair}
-/* campo que aparece sobre a imagem para digitar a anotação no lugar do clique */
-.itxt{position:absolute;min-width:90px;margin:0;padding:0 2px;border:0;outline:0;
-  border-bottom:1px dashed rgba(74,58,94,.35);background:rgba(255,255,255,.82);border-radius:3px;
-  line-height:1.2}
+/* caixa de texto: a área demarcada recebe a digitação e, por cima dela, a barra
+   com tamanho da fonte e cor de fundo */
+.itxt{position:absolute;z-index:3;margin:0;padding:0;border:0;outline:0;resize:none;overflow:hidden;
+  font-family:Inter,system-ui,sans-serif;font-weight:600;text-align:left;border-radius:4px;
+  box-shadow:0 0 0 1px rgba(255,120,180,.75)}
+.itxt:focus{box-shadow:0 0 0 2px var(--acc)}
+.itext-bar{position:absolute;z-index:4;display:flex;align-items:center;gap:4px;
+  padding:4px 6px;border-radius:10px;background:var(--surface);white-space:nowrap;
+  box-shadow:0 0 0 1px var(--line),0 8px 20px rgba(74,58,94,.18)}
+.itext-bar button{border:0;background:transparent;color:var(--ink-2);border-radius:6px;
+  padding:3px 6px;font:600 13px Inter,sans-serif;line-height:1;cursor:pointer}
+.itext-bar button:hover{background:var(--soft)}
+.itext-bar button[aria-pressed="true"]{background:var(--soft);color:var(--acc-2)}
+.itext-bar .sep{width:1px;height:16px;background:var(--line);margin:0 2px}
+.itext-bar .fgrp,.itext-bar .bgrp{display:flex;align-items:center;gap:2px}
+.itext-bar [data-fs="0.8"]{font-size:11px}
+.itext-bar [data-fs="1"]{font-size:14px}
+.itext-bar [data-fs="1.35"]{font-size:18px}
+.itext-bar .bgrp button{width:18px;height:18px;padding:0;border-radius:50%;
+  background:var(--bgc,#fff);box-shadow:0 0 0 1px rgba(74,58,94,.28)}
+.itext-bar .bgrp button[aria-pressed="true"]{box-shadow:0 0 0 2px var(--acc)}
+.itext-bar .bgrp button.none{background:repeating-conic-gradient(#ece4f0 0 25%,#fff 0 50%) 0 0/6px 6px}
 
 /* ---------- aviso ---------- */
 #toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:100;
@@ -353,7 +371,21 @@ dialog .row .btn{width:auto}
     <div class="img-frame">
       <div class="img-hold">
         <canvas id="icv" aria-label="Prévia da imagem"></canvas>
-        <input id="itxt" class="itxt" type="text" hidden autocomplete="off" aria-label="Texto da anotação">
+        <textarea id="itxt" class="itxt" hidden aria-label="Texto da anotação"></textarea>
+        <div id="ibar" class="itext-bar" hidden>
+          <span class="fgrp" role="group" aria-label="Tamanho da fonte">
+            <button type="button" data-fs="0.8" aria-pressed="false" title="Fonte pequena" aria-label="Fonte pequena">A</button>
+            <button type="button" data-fs="1" aria-pressed="true" title="Fonte média" aria-label="Fonte média">A</button>
+            <button type="button" data-fs="1.35" aria-pressed="false" title="Fonte grande" aria-label="Fonte grande">A</button>
+          </span>
+          <span class="sep" aria-hidden="true"></span>
+          <span class="bgrp" role="group" aria-label="Cor de fundo">
+            <button type="button" class="none" data-bg="transparent" aria-pressed="false" title="Sem fundo" aria-label="Sem fundo"></button>
+            <button type="button" data-bg="rgba(255,255,255,.62)" style="--bgc:rgba(255,255,255,.62)" aria-pressed="true" title="Branco transparente" aria-label="Branco transparente"></button>
+            <button type="button" data-bg="#ffffff" style="--bgc:#fff" aria-pressed="false" title="Branco" aria-label="Branco"></button>
+            <button type="button" data-bg="rgba(255,214,231,.9)" style="--bgc:rgba(255,214,231,.9)" aria-pressed="false" title="Rosa" aria-label="Rosa"></button>
+          </span>
+        </div>
       </div>
     </div>
   </div>
@@ -587,7 +619,8 @@ function insertImg(url){
 const dimg=$('#dimg'),icv=$('#icv'),ictx=icv.getContext('2d'),itxt=$('#itxt');
 const IMAX=2400;   // lado maior do que vai para o servidor, em pixels
 let iimg=null,iurl=null,icrop=null,istr=[],ihist=[],itool='crop',icolor='#c7346d',iw=5,idpr=1;
-let isel=null,istrAtual=null,iarrow=null,itxtPos=null,isavedRange=null;
+let isel=null,istrAtual=null,iarrow=null,itextDrag=null,itbox=null,isavedRange=null;
+let ifsize=1,ibg='rgba(255,255,255,.62)';
 
 /* o <dialog> é modal: o cursor do texto se perde ao abrir, então guardamos a
    seleção para a imagem entrar onde o usuário estava escrevendo */
@@ -612,7 +645,7 @@ function openImg(f){
   im.onload=()=>{
     iimg=im;icrop={x:0,y:0,w:im.naturalWidth,h:im.naturalHeight};
     istr=[];ihist=[];isel=null;istrAtual=null;iarrow=null;
-    itxt.hidden=true;itxt.value='';itxtPos=null;
+    itxt.hidden=true;itxt.value='';itbox=null;itextDrag=null;$('#ibar').hidden=true;
     setTool('crop');
     dimg.showModal();requestAnimationFrame(fit);
   };
@@ -632,22 +665,53 @@ function fit(){
   render();
 }
 
-/* tamanho do texto acompanha a imagem, para continuar legível em prints grandes */
+/* o tamanho base acompanha a imagem; a barra da caixa multiplica esse valor */
 function textFont(px){return '600 '+Math.max(1,Math.round(px))+'px Inter,system-ui,sans-serif'}
-function textSize(){
+function curTextSize(){
   const base=Math.max(18,Math.min(120,icrop.w/26));
-  return Math.round(base*(iw===2?.75:iw===10?1.5:1));
+  return Math.max(10,Math.round(base*ifsize));
+}
+
+/* caixa de texto: fundo opcional, linhas quebradas na largura e centradas na altura */
+function wrapLines(c,text,maxW){
+  const out=[];
+  for(const par of String(text).split('\n')){
+    let line='';
+    for(const word of par.split(/\s+/)){
+      if(!word)continue;
+      const t=line?line+' '+word:word;
+      if(line&&c.measureText(t).width>maxW){out.push(line);line=word}
+      else line=t;
+    }
+    out.push(line);
+  }
+  return out;
+}
+function drawTextBox(c,s,crop,k){
+  const size=Math.max(6,s.size*k);
+  const padX=size*.45,padY=size*.35;
+  const boxW=Math.max(size*1.5,s.w*k);
+  c.font=textFont(size);
+  const lines=wrapLines(c,s.text,Math.max(size,boxW-padX*2));
+  const lh=size*1.3;
+  const boxH=Math.max(s.h*k,lines.length*lh+padY*2);
+  const x=(s.x-crop.x)*k,y=(s.y-crop.y)*k;
+  if(s.bg&&s.bg!=='transparent'){
+    c.fillStyle=s.bg;c.beginPath();
+    const r=Math.min(8,size*.3);
+    if(c.roundRect)c.roundRect(x,y,boxW,boxH,r);else c.rect(x,y,boxW,boxH);
+    c.fill();
+  }
+  c.fillStyle=s.color;c.textAlign='left';c.textBaseline='middle';
+  const startY=y+(boxH-lines.length*lh)/2+lh/2;
+  lines.forEach((ln,i)=>c.fillText(ln,x+padX,startY+i*lh));
 }
 
 function paint(c,s,crop,k){
   const w=Math.max(1,s.w*k);
   c.strokeStyle=s.color;c.fillStyle=s.color;
   c.lineCap='round';c.lineJoin='round';
-  if(s.kind==='text'){
-    c.font=textFont(s.size*k);c.textBaseline='top';c.textAlign='left';
-    c.fillText(s.text,(s.x-crop.x)*k,(s.y-crop.y)*k);
-    return;
-  }
+  if(s.kind==='text'){drawTextBox(c,s,crop,k);return}
   if(s.kind==='arrow'){
     const x1=(s.a.x-crop.x)*k,y1=(s.a.y-crop.y)*k;
     const x2=(s.b.x-crop.x)*k,y2=(s.b.y-crop.y)*k;
@@ -694,6 +758,12 @@ function render(){
     ictx.strokeRect((r.x-icrop.x)*k,(r.y-icrop.y)*k,r.w*k,r.h*k);
     ictx.setLineDash([]);
   }
+  if(itextDrag){
+    const r=normSel(itextDrag);
+    ictx.strokeStyle='#ff78b4';ictx.lineWidth=1.5;ictx.setLineDash([6,4]);
+    ictx.strokeRect((r.x-icrop.x)*k,(r.y-icrop.y)*k,r.w*k,r.h*k);
+    ictx.setLineDash([]);
+  }
 }
 
 /* retângulo do arraste, limitado à área já recortada */
@@ -715,45 +785,91 @@ const IHINT={
   crop:'Arraste sobre a imagem para recortar',
   pen:'Desenhe sobre a imagem',
   arrow:'Arraste para desenhar a flecha',
-  text:'Clique na imagem e escreva'
+  text:'Arraste para marcar a área do texto'
 };
 function setTool(t){
   commitText(false);
   itool=t;
   const ids={crop:'#icrop',pen:'#ipen',arrow:'#iarrow',text:'#itext'};
   for(const k in ids)$(ids[k]).setAttribute('aria-pressed',String(k===t));
-  icv.style.cursor=t==='text'?'text':t==='pen'?'cell':'crosshair';
+  icv.style.cursor=t==='pen'?'cell':'crosshair';
   $('#ihint').textContent=IHINT[t];
 }
 
-/* texto: um campo aparece sobre a imagem no ponto clicado, com a mesma cor e
-   tamanho que a anotação terá; Enter ou sair do campo confirma */
-function openText(p){
-  commitText(false);
+/* texto: arraste para demarcar a área; a própria caixa recebe a digitação e,
+   logo acima dela, ficam os botões de tamanho da fonte e de cor de fundo */
+function openTextBox(r){
   const k=icv.clientWidth/icrop.w;
-  const size=textSize();
-  itxtPos={x:p.x,y:p.y,size};
+  itbox={x:r.x,y:r.y,w:Math.max(28,r.w),h:Math.max(22,r.h),size:curTextSize(),bg:ibg};
+  const padX=Math.round(itbox.size*k*.45),padY=Math.round(itbox.size*k*.35);
   itxt.value='';
+  itxt.style.left=Math.round((itbox.x-icrop.x)*k)+'px';
+  itxt.style.top=Math.round((itbox.y-icrop.y)*k)+'px';
+  itxt.style.width=Math.round(itbox.w*k)+'px';
+  itxt.style.height=Math.round(itbox.h*k)+'px';
+  itxt.style.font=textFont(itbox.size*k);
+  itxt.style.lineHeight='1.3';
+  itxt.style.padding=padY+'px '+padX+'px';
   itxt.style.color=icolor;
-  itxt.style.font=textFont(size*k);
-  itxt.style.left=Math.round((p.x-icrop.x)*k)+'px';
-  itxt.style.top=Math.round((p.y-icrop.y)*k)+'px';
+  itxt.style.background=ibg==='transparent'?'transparent':ibg;
   itxt.hidden=false;
+  layoutBar();
+  render();
   itxt.focus();
+}
+/* barra flutuante: acima da caixa; se não couber, logo abaixo */
+function layoutBar(){
+  const bar=$('#ibar');
+  bar.hidden=false;
+  const bx=parseFloat(itxt.style.left)||0,by=parseFloat(itxt.style.top)||0;
+  const bw=parseFloat(itxt.style.width)||0,bh=parseFloat(itxt.style.height)||0;
+  const barW=bar.offsetWidth||170,barH=bar.offsetHeight||30;
+  let left=Math.max(0,Math.min(bx,icv.clientWidth-barW));
+  let top=by-barH-8;
+  if(top<0)top=Math.min(Math.max(0,icv.clientHeight-barH),by+bh+8);
+  bar.style.left=Math.round(left)+'px';
+  bar.style.top=Math.round(Math.max(0,top))+'px';
 }
 function commitText(cancel){
   if(!itxt||itxt.hidden)return;
-  const txt=itxt.value.trim(),pos=itxtPos;
-  itxt.hidden=true;itxt.value='';itxtPos=null;
-  if(cancel||!txt||!pos)return;
+  const txt=itxt.value.trim(),box=itbox;
+  itxt.hidden=true;itxt.value='';itbox=null;
+  $('#ibar').hidden=true;
+  if(cancel||!box||!txt){render();return}
   ihist.push({kind:'text'});
-  istr.push({kind:'text',color:icolor,w:iw,size:pos.size,x:pos.x,y:pos.y,text:txt});
+  istr.push({kind:'text',color:icolor,x:box.x,y:box.y,w:box.w,h:box.h,size:box.size,bg:box.bg,text:txt});
   render();
 }
 itxt.addEventListener('keydown',e=>{
-  if(e.key==='Enter'){e.preventDefault();commitText(false)}
+  if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();commitText(false)}
 });
 itxt.addEventListener('blur',()=>commitText(false));
+/* a barra não pode roubar o foco da caixa, senão o texto seria confirmado */
+$('#ibar').addEventListener('pointerdown',e=>e.preventDefault());
+$('#ibar').addEventListener('click',e=>{
+  const fs=e.target.closest('[data-fs]');
+  if(fs)return setFontSize(+fs.dataset.fs);
+  const bg=e.target.closest('[data-bg]');
+  if(bg)return setBg(bg.dataset.bg);
+});
+function setFontSize(f){
+  ifsize=f;
+  $('#ibar').querySelectorAll('[data-fs]').forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.fs===f)));
+  if(!itbox)return;
+  itbox.size=curTextSize();
+  const k=icv.clientWidth/icrop.w;
+  const padX=Math.round(itbox.size*k*.45),padY=Math.round(itbox.size*k*.35);
+  itxt.style.font=textFont(itbox.size*k);
+  itxt.style.padding=padY+'px '+padX+'px';
+  layoutBar();
+}
+function setBg(v){
+  ibg=v;
+  $('#ibar').querySelectorAll('[data-bg]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.bg===v)));
+  if(!itbox)return;
+  itbox.bg=v;
+  itxt.style.background=v==='transparent'?'transparent':v;
+}
 /* Escape com o campo aberto cancela só o texto, sem fechar o editor */
 dimg.addEventListener('cancel',e=>{
   if(!itxt.hidden){e.preventDefault();commitText(true)}
@@ -762,9 +878,11 @@ dimg.addEventListener('cancel',e=>{
 icv.addEventListener('pointerdown',e=>{
   if(!iimg||!icrop||(e.button!==undefined&&e.button!==0))return;
   e.preventDefault();
+  /* clique fora da caixa só confirma o texto; a próxima cria outra */
+  if(!itxt.hidden){commitText(false);render();return}
   const p=posOf(e);
-  if(itool==='text'){openText(p);return}
   try{icv.setPointerCapture(e.pointerId)}catch(err){}
+  if(itool==='text'){itextDrag={x0:p.x,y0:p.y,x1:p.x,y1:p.y};render();return}
   if(itool==='crop')isel={x0:p.x,y0:p.y,x1:p.x,y1:p.y};
   else if(itool==='arrow')iarrow={color:icolor,w:iw,a:p,b:p};
   else{ihist.push({kind:'pen'});istrAtual={kind:'pen',color:icolor,w:iw,pts:[p]};istr.push(istrAtual)}
@@ -773,10 +891,22 @@ icv.addEventListener('pointerdown',e=>{
 icv.addEventListener('pointermove',e=>{
   if(!icrop)return;
   if(isel){const p=posOf(e);isel.x1=p.x;isel.y1=p.y;render()}
+  else if(itextDrag){const p=posOf(e);itextDrag.x1=p.x;itextDrag.y1=p.y;render()}
   else if(iarrow){iarrow.b=posOf(e);render()}
   else if(istrAtual){istrAtual.pts.push(posOf(e));render()}
 });
 function endStroke(commit){
+  if(itextDrag){
+    const r=normSel(itextDrag);itextDrag=null;
+    if(commit){
+      if(r.w>=24&&r.h>=16)openTextBox(r);
+      else{
+        const size=curTextSize();
+        openTextBox({x:r.x,y:r.y,w:Math.min(icrop.w*0.6,Math.max(size*10,240)),h:size*2.1});
+      }
+    }else render();
+    return;
+  }
   if(isel){
     const r=normSel(isel);isel=null;
     if(commit&&r.w>=8&&r.h>=8){ihist.push({kind:'crop',prev:{...icrop}});icrop=r;fit()}
@@ -823,7 +953,7 @@ $('#icancel').onclick=()=>dimg.close();
 dimg.addEventListener('close',()=>{
   if(iurl){URL.revokeObjectURL(iurl);iurl=null}
   iimg=null;icrop=null;istr=[];ihist=[];isel=null;istrAtual=null;iarrow=null;
-  itxt.hidden=true;itxt.value='';itxtPos=null;
+  itxt.hidden=true;itxt.value='';itbox=null;itextDrag=null;$('#ibar').hidden=true;
 });
 window.addEventListener('resize',()=>{if(dimg.open&&iimg){commitText(false);fit()}});
 
