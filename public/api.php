@@ -82,7 +82,7 @@ const TOPICS_LIMIT_MAX   = 200;
 const LOGIN_MAX_ATTEMPTS = 8;
 const LOGIN_WINDOW_MIN   = 15;
 
-const ALLOWED_TAGS = ['p', 'br', 'b', 'strong', 'i', 'em', 'u', 'h2', 'h3', 'ul', 'ol', 'li', 'img'];
+const ALLOWED_TAGS = ['p', 'br', 'b', 'strong', 'i', 'em', 'u', 'h2', 'h3', 'ul', 'ol', 'li', 'img', 'a'];
 // Tags removidas junto com o conteúdo: nada aqui pode virar script/iframe/objeto.
 const DROP_TAGS = [
     'script', 'style', 'iframe', 'frame', 'frameset', 'object', 'embed', 'applet',
@@ -258,6 +258,29 @@ function clean(?string $html): string
     return trim($out);
 }
 
+/**
+ * Destino de link aceitável: http(s) ou mailto, sem espaços, controles, aspas
+ * ou barras invertidas. Qualquer outro esquema (javascript:, data:, file:...)
+ * devolve null e o <a> é desembrulhado para texto.
+ */
+function safe_link_href(string $href): ?string
+{
+    $href = trim($href);
+    if ($href === '' || strlen($href) > 2000) {
+        return null;
+    }
+    if (preg_match('#[\x00-\x20\x7f"<>`\\\\]#', $href) === 1) {
+        return null;
+    }
+    if (preg_match('#^https?://[^/]#i', $href) === 1) {
+        return $href;
+    }
+    if (preg_match('#^mailto:[^\s@]+@[^\s@]+(\?.*)?$#i', $href) === 1) {
+        return $href;
+    }
+    return null;
+}
+
 function sanitize_children(DOMNode $node): void
 {
     do {
@@ -289,12 +312,32 @@ function sanitize_children(DOMNode $node): void
                 continue;
             }
 
-            foreach (iterator_to_array($child->attributes) as $attr) {
-                $keep = $name === 'img'
-                    && $attr->nodeName === 'src'
-                    && preg_match('#^' . UPLOAD_PATH_PATTERN . '$#', (string) $attr->nodeValue) === 1;
-                if (!$keep) {
+            if ($name === 'a') {
+                $href = (string) $child->getAttribute('href');
+                foreach (iterator_to_array($child->attributes) as $attr) {
                     $child->removeAttribute($attr->nodeName);
+                }
+                $safe = safe_link_href($href);
+                if ($safe === null) {
+                    // endereço inválido: mantém o texto, descarta o link
+                    while ($child->firstChild) {
+                        $node->insertBefore($child->firstChild, $child);
+                    }
+                    $node->removeChild($child);
+                    $changed = true;
+                    continue;
+                }
+                $child->setAttribute('href', $safe);
+                $child->setAttribute('target', '_blank');
+                $child->setAttribute('rel', 'noopener noreferrer nofollow');
+            } else {
+                foreach (iterator_to_array($child->attributes) as $attr) {
+                    $keep = $name === 'img'
+                        && $attr->nodeName === 'src'
+                        && preg_match('#^' . UPLOAD_PATH_PATTERN . '$#', (string) $attr->nodeValue) === 1;
+                    if (!$keep) {
+                        $child->removeAttribute($attr->nodeName);
+                    }
                 }
             }
             sanitize_children($child);

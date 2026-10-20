@@ -102,6 +102,7 @@ main{flex:1;min-width:0;padding:28px 32px}
 .doc .body p{margin:0 0 12px}
 .doc .body h2{font-size:20px;margin:24px 0 8px}
 .doc .body img{display:block;max-width:100%;margin:12px 0;border-radius:10px;border:1px solid var(--line)}
+.doc .body a{color:var(--acc-2);text-decoration:underline;text-underline-offset:2px;word-break:break-word}
 .doc .row{display:flex;gap:8px;margin-top:22px;padding-top:18px;border-top:1px solid var(--line)}
 
 /* ---------- diálogos ---------- */
@@ -148,6 +149,7 @@ dialog .row .btn{width:auto}
 #ed:focus{border-color:var(--acc);box-shadow:0 0 0 3px rgba(255,120,180,.26)}
 #ed:empty:before{content:attr(data-ph);color:#a996b8}
 #ed img{max-width:100%;margin:8px 0;border-radius:10px}
+#ed a{color:var(--acc-2);text-decoration:underline;text-underline-offset:2px;cursor:pointer}
 
 /* ---------- editor de tópico em tela cheia ---------- */
 /* A folha toma a viewport inteira para dar espaço à escrita. O texto fica numa
@@ -542,6 +544,9 @@ async function show(id){
   const t=await api('topic',0,'&id='+id);
   const when=t.updated_at?new Date(t.updated_at).toLocaleDateString('pt-BR'):'';
   $('#view').innerHTML=`<div class="card doc"><button class="btn ghost" style="width:auto;margin:0 0 14px" id="back">← Voltar</button><h1>${esc(t.title)}</h1><div class="meta">${esc(t.cat)}${when?' · atualizado em '+when:''}</div><div class="body">${t.body}</div><div class="row"><button class="btn" id="tedit">Editar</button><button class="btn ghost" style="width:auto;margin:0" id="tdel">Excluir</button></div></div>`;
+  // corpo gravado antes desta versão (ou colado inteiro) traz o endereço em
+  // texto puro: vira link também na leitura, não só o que foi digitado agora
+  linkifyTree($('#view .body'));
   $('#back').onclick=()=>list().catch(()=>{});
   $('#tedit').onclick=()=>editTopic(t.id).catch(()=>{});
   $('#tdel').onclick=()=>delTopic(t.id);
@@ -594,6 +599,122 @@ document.querySelectorAll('.tb [data-c]').forEach(b=>b.onclick=()=>{
   const c=b.dataset.c;
   c=='h2'?document.execCommand('formatBlock',0,'h2'):document.execCommand({ul:'insertUnorderedList',ol:'insertOrderedList'}[c]||c);
   $('#ed').focus();
+});
+
+/* ---------- links: o endereço digitado vira <a> ao concluir a palavra ---------- */
+const URL_RE=/(?:https?:\/\/|www\.)[^\s<>"']+/gi;
+/* endereço absoluto de um endereço digitado: "www.x.com" abre em https */
+const hrefDe=txt=>/^https?:\/\//i.test(txt)?txt:'https://'+txt;
+function linkifyNode(node){
+  const text=node.nodeValue,re=new RegExp(URL_RE.source,'gi');
+  const frag=document.createDocumentFragment();
+  let m,last=0,mudou=false;
+  while((m=re.exec(text))){
+    const cauda=(m[0].match(/[.,;:!?)\]]+$/)||[''])[0];
+    const raw=cauda?m[0].slice(0,-cauda.length):m[0];
+    if(raw.length<7||raw==='www.')continue;
+    if(m.index>last)frag.appendChild(document.createTextNode(text.slice(last,m.index)));
+    const a=document.createElement('a');
+    a.setAttribute('href',hrefDe(raw));
+    a.textContent=raw;a.target='_blank';a.rel='noopener noreferrer nofollow';
+    frag.appendChild(a);
+    if(cauda)frag.appendChild(document.createTextNode(cauda));
+    last=m.index+m[0].length;mudou=true;
+  }
+  if(!mudou)return false;
+  if(last<text.length)frag.appendChild(document.createTextNode(text.slice(last)));
+  node.parentNode.replaceChild(frag,node);
+  return true;
+}
+function caretOffset(ed){
+  const s=getSelection();
+  if(!s.rangeCount||!ed.contains(s.anchorNode))return null;
+  const r=s.getRangeAt(0),pre=document.createRange();
+  pre.selectNodeContents(ed);pre.setEnd(r.startContainer,r.startOffset);
+  return pre.toString().length;
+}
+function setCaretOffset(ed,off){
+  const w=document.createTreeWalker(ed,NodeFilter.SHOW_TEXT);
+  let n,acc=0;
+  while((n=w.nextNode())){
+    if(acc+n.nodeValue.length>=off){
+      const r=document.createRange();r.setStart(n,off-acc);r.collapse(true);
+      const s=getSelection();s.removeAllRanges();s.addRange(r);return;
+    }
+    acc+=n.nodeValue.length;
+  }
+  const r=document.createRange();r.selectNodeContents(ed);r.collapse(false);
+  const s=getSelection();s.removeAllRanges();s.addRange(r);
+}
+/* troca em âncoras todo endereço que ainda está em texto puro; âncoras que já
+   existem são puladas, então rodar de novo não duplica nada */
+function linkifyTree(root){
+  if(!root)return false;
+  const alvos=[];
+  const w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
+  let n;
+  while((n=w.nextNode())){
+    if(n.parentElement&&n.parentElement.closest('a'))continue;
+    if(/https?:\/\/|www\./i.test(n.nodeValue))alvos.push(n);
+  }
+  let mudou=false;
+  for(const t of alvos)mudou=linkifyNode(t)||mudou;
+  return mudou;
+}
+/* digitar colado no fim do link quebra o endereço em dois pedaços (o texto novo
+   cai fora da âncora): junta tudo de volta num texto só para o link ser refeito
+   inteiro quando a palavra termina */
+function soltaLinkContinuado(ed){
+  const s=getSelection();
+  if(!s.rangeCount||!ed.contains(s.anchorNode))return false;
+  const n=s.anchorNode;
+  if(n.nodeType!==3||!n.nodeValue)return false;
+  if(/^\s/.test(n.nodeValue))return false;      // separado por espaço: é outro texto
+  const a=n.previousSibling;
+  if(!(a instanceof HTMLAnchorElement)||!ed.contains(a))return false;
+  const off=caretOffset(ed);
+  const t=document.createTextNode(a.textContent+n.nodeValue);
+  a.parentNode.replaceChild(t,a);
+  n.parentNode.removeChild(n);
+  if(off!==null)setCaretOffset(ed,off);
+  return true;
+}
+/* editar o texto de um link deixaria a âncora apontando para outro endereço:
+   nesse caso ela volta a ser texto e o endereço é reconhecido de novo quando a
+   palavra termina, já com o destino corrigido */
+function unlinkEditado(ed){
+  const s=getSelection();
+  if(!s.rangeCount||!ed.contains(s.anchorNode))return false;
+  const alvo=s.anchorNode.nodeType===1?s.anchorNode:s.anchorNode.parentElement;
+  const a=alvo&&alvo.closest?alvo.closest('a'):null;
+  if(!a||!ed.contains(a))return false;
+  const txt=a.textContent;
+  if(a.getAttribute('href')===hrefDe(txt))return false;
+  const off=caretOffset(ed);
+  a.parentNode.replaceChild(document.createTextNode(txt),a);
+  if(off!==null)setCaretOffset(ed,off);
+  return true;
+}
+/* no editor o caret é reposto pelo deslocamento de texto, que não muda (só as
+   tags entram), então a digitação continua no mesmo lugar */
+function linkifyEd(){
+  const ed=$('#ed');
+  if(!ed)return false;
+  const off=caretOffset(ed),mudou=linkifyTree(ed);
+  if(mudou&&off!==null)setCaretOffset(ed,off);
+  return mudou;
+}
+$('#ed').addEventListener('input',e=>{
+  soltaLinkContinuado($('#ed'));   // texto colado no fim do link volta a ser um só
+  unlinkEditado($('#ed'));         // link cujo texto mudou deixa de valer
+  const t=e.inputType||'';
+  if(t==='insertFromPaste'||t==='insertParagraph'||t==='insertLineBreak'
+     ||(t==='insertText'&&(e.data===' '||e.data==='\u00a0')))linkifyEd();
+});
+/* no editor o clique normal posiciona o cursor; Ctrl/Cmd+clique abre o link */
+$('#ed').addEventListener('click',e=>{
+  const a=e.target.closest&&e.target.closest('a');
+  if(a&&(e.ctrlKey||e.metaKey)){e.preventDefault();window.open(a.href,'_blank','noopener')}
 });
 
 async function up(f){
@@ -1096,6 +1217,7 @@ $('#ed').onpaste=e=>{
 
 $('#tsave').onclick=async()=>{
   if(!$('#tt').value.trim())return $('#tt').focus();
+  linkifyEd();   // garante âncora mesmo se o link foi colado inteiro
   try{
     const r=await api('topic_save',{id:eid,title:$('#tt').value,category_id:$('#tc').value,body:$('#ed').innerHTML});
     dtopic.close();toast('Tópico salvo.');await loadCats();await show(r.id);

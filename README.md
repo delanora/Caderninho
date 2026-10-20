@@ -8,6 +8,7 @@ Feito para rodar em um servidor próprio, sem Docker e sem dependências além d
 
 - **Categorias** com nome e emoji (a cor é fixa na paleta do app); o emoji é calculado a partir do nome (dicionário de termos contábeis, com fallback determinístico) e pode ser trocado num seletor de emojis; cada tópico pertence a uma categoria.
 - **Tópicos** com título e corpo em HTML leve, com negrito, itálico, títulos, listas e imagens; a criação/edição abre em tela cheia (título, categoria e ações no topo, texto numa coluna de leitura).
+- **Links** digitados no tópico (`https://…` ou `www.…`) viram âncoras ao concluir a palavra, colar ou salvar; abrem em nova aba ao clicar no tópico (`Ctrl`+clique dentro do editor). Corrigir o endereço desfaz a âncora e ela é refeita com o destino novo.
 - **Busca** full-text em português com `unaccent` (buscar "orcamento" encontra "Orçamento") e por prefixo de palavra.
 - **Imagens** coladas com `Ctrl+V` ou enviadas pelo botão 📷 abrem antes num editor em tela cheia, onde dá para recortar (arrastando sobre a imagem), desenhar à mão, traçar flechas e escrever texto por cima (arraste para demarcar a área da caixa de texto, que pode ser movida depois pela moldura ou pela alça da barra; acima dela ficam o tamanho da fonte em px e o fundo, branco translúcido por padrão; a caixa cresce em altura enquanto se digita, voltando ao tamanho demarcado ao apagar) — 5 cores, 3 espessuras e desfazer (botão ou `Ctrl+Z`); só o resultado é enviado e inserido no ponto do texto onde o cursor estava. Ao excluir um tópico, as imagens que ninguém mais usa são apagadas do disco.
 - **Login** por senha única, com limite de tentativas por IP e sessão em cookie `HttpOnly`/`SameSite=Lax`.
@@ -175,7 +176,7 @@ O que a aplicação já faz:
 - **Sessão** com `use_strict_mode`, `HttpOnly`, `SameSite=Lax` e `Secure` automático sob HTTPS; o id é regenerado no login (sem session fixation).
 - **CSRF**: toda escrita exige o header `X-CSRF` com o token da sessão; o token é rotacionado a cada login.
 - **Limite de login**: 8 falhas por IP em 15 minutos → HTTP 429.
-- **HTML do editor** é sanitizado por *allowlist* de tags e atributos (DOMDocument): nenhum atributo sobrevive além de `<img src>` apontando para `uploads/`, e `script`/`iframe`/`style`/`svg` são removidos com o conteúdo.
+- **HTML do editor** é sanitizado por *allowlist* de tags e atributos (DOMDocument): os únicos atributos que sobrevivem são `<img src>` apontando para `uploads/` e `<a href>` com `http(s)`/`mailto` (o resto — `target`, `rel` — é reescrito pelo servidor), e `script`/`iframe`/`style`/`svg` são removidos com o conteúdo. `javascript:`, `data:`, `file:` e endereços relativos perdem o link e mantêm o texto.
 - **Uploads** validados por MIME real (`finfo` + `getimagesize`), nome aleatório, extensão derivada do tipo e diretório sem execução de PHP.
 - **Respostas JSON** com `nosniff`, `no-referrer`, `frame-ancestors 'none'` e `Cache-Control: no-store`.
 - **Segredos fora do docroot**: senha do banco e hash de login ficam no `.env` (permissão `600`, dono `www-data`), um nível acima de `public/`. O repositório não versiona nenhum segredo — `.env`, `.env.*` e `config.php` estão no `.gitignore`, e o modelo `.env.example` não tem valores reais.
@@ -256,6 +257,7 @@ tar xzf uploads-AAAA-MM-DD.tar.gz -C /var/www/caderninho/public
 - **Sem CSP na página HTML**: o `index.html` tem CSS/JS inline, o que exige `script-src 'unsafe-inline'`; para uma CSP restritiva seria preciso extrair `app.js`/`app.css` e trocar os `onclick` inline por listeners.
 - **Fontes vêm do Google Fonts** (requer internet; para uso offline, hospede as fontes localmente).
 - **Sem migrações numeradas**: o `schema.sql` é idempotente, mas alterações estruturais futuras precisam ser escritas nele (com `IF NOT EXISTS`/`ADD COLUMN IF NOT EXISTS`).
+- **Link só com esquema**: `exemplo.com` sem `https://` ou `www.` fica texto puro (não há adivinhação de domínio). Endereços antigos, gravados como texto antes desta versão, viram link na leitura.
 - **Sem suíte de testes automatizados** no repositório.
 
 ## Licença
