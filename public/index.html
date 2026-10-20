@@ -194,11 +194,12 @@ dialog .row .btn{width:auto}
 .img-hold{position:relative;display:inline-block;line-height:0}
 #icv{display:block;max-width:100%;max-height:100%;border-radius:var(--r-sm);background:var(--surface);
   box-shadow:0 1px 3px rgba(74,58,94,.16);touch-action:none;cursor:crosshair}
-/* caixa de texto: a área demarcada recebe a digitação e, por cima dela, a barra
-   com tamanho da fonte e cor de fundo */
-.itxt{position:absolute;z-index:3;margin:0;padding:0;border:0;outline:0;resize:none;overflow:hidden;
-  font-family:Inter,system-ui,sans-serif;font-weight:600;text-align:left;border-radius:4px;
-  box-shadow:0 0 0 1px rgba(255,120,180,.75)}
+/* caixa de texto: a moldura de 7px em volta serve de alça para arrastar a caixa;
+   dentro dela fica o campo, e acima a barra com o tamanho em px e o fundo */
+.itext-box{position:absolute;z-index:3;padding:7px;cursor:move;touch-action:none}
+.itxt{display:block;width:100%;height:100%;margin:0;padding:0;border:0;outline:0;resize:none;
+  overflow:hidden;font-family:Inter,system-ui,sans-serif;font-weight:600;text-align:left;
+  border-radius:4px;box-shadow:0 0 0 1px rgba(255,120,180,.75)}
 .itxt:focus{box-shadow:0 0 0 2px var(--acc)}
 .itext-bar{position:absolute;z-index:4;display:flex;align-items:center;gap:4px;
   padding:4px 6px;border-radius:10px;background:var(--surface);white-space:nowrap;
@@ -208,10 +209,13 @@ dialog .row .btn{width:auto}
 .itext-bar button:hover{background:var(--soft)}
 .itext-bar button[aria-pressed="true"]{background:var(--soft);color:var(--acc-2)}
 .itext-bar .sep{width:1px;height:16px;background:var(--line);margin:0 2px}
-.itext-bar .fgrp,.itext-bar .bgrp{display:flex;align-items:center;gap:2px}
-.itext-bar [data-fs="0.8"]{font-size:11px}
-.itext-bar [data-fs="1"]{font-size:14px}
-.itext-bar [data-fs="1.35"]{font-size:18px}
+.itext-bar .bgrp{display:flex;align-items:center;gap:2px}
+.itext-bar .move{cursor:grab;color:var(--ink-2);display:inline-flex;align-items:center}
+.itext-bar .move:active{cursor:grabbing}
+.itext-bar .fs{display:flex;align-items:center;gap:4px;font:600 12px Inter,sans-serif;color:var(--ink-2)}
+.itext-bar .fs input{width:56px;padding:3px 4px;border:1px solid var(--line);border-radius:6px;
+  font:600 13px Inter,sans-serif;color:var(--ink);text-align:center;background:var(--surface)}
+.itext-bar .fs input:focus{outline:0;border-color:var(--acc);box-shadow:0 0 0 2px rgba(255,120,180,.26)}
 .itext-bar .bgrp button{width:18px;height:18px;padding:0;border-radius:50%;
   background:var(--bgc,#fff);box-shadow:0 0 0 1px rgba(74,58,94,.28)}
 .itext-bar .bgrp button[aria-pressed="true"]{box-shadow:0 0 0 2px var(--acc)}
@@ -371,13 +375,15 @@ dialog .row .btn{width:auto}
     <div class="img-frame">
       <div class="img-hold">
         <canvas id="icv" aria-label="Prévia da imagem"></canvas>
-        <textarea id="itxt" class="itxt" hidden aria-label="Texto da anotação"></textarea>
+        <div id="ibox" class="itext-box" hidden>
+          <textarea id="itxt" class="itxt" aria-label="Texto da anotação"></textarea>
+        </div>
         <div id="ibar" class="itext-bar" hidden>
-          <span class="fgrp" role="group" aria-label="Tamanho da fonte">
-            <button type="button" data-fs="0.8" aria-pressed="false" title="Fonte pequena" aria-label="Fonte pequena">A</button>
-            <button type="button" data-fs="1" aria-pressed="true" title="Fonte média" aria-label="Fonte média">A</button>
-            <button type="button" data-fs="1.35" aria-pressed="false" title="Fonte grande" aria-label="Fonte grande">A</button>
-          </span>
+          <button id="imove" type="button" class="move" title="Arraste para mover a caixa" aria-label="Mover a caixa">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v18M3 12h18M9 6l3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3"/></svg>
+          </button>
+          <span class="sep" aria-hidden="true"></span>
+          <label class="fs"><input id="ifs" type="number" min="6" max="400" step="1" inputmode="numeric" aria-label="Tamanho da fonte em pixels"><span>px</span></label>
           <span class="sep" aria-hidden="true"></span>
           <span class="bgrp" role="group" aria-label="Cor de fundo">
             <button type="button" class="none" data-bg="transparent" aria-pressed="false" title="Sem fundo" aria-label="Sem fundo"></button>
@@ -616,11 +622,11 @@ function insertImg(url){
 }
 
 /* ---------- ajuste da imagem antes de inserir: recorte, caneta, flecha e texto ---------- */
-const dimg=$('#dimg'),icv=$('#icv'),ictx=icv.getContext('2d'),itxt=$('#itxt');
+const dimg=$('#dimg'),icv=$('#icv'),ictx=icv.getContext('2d'),itxt=$('#itxt'),ibox=$('#ibox');
 const IMAX=2400;   // lado maior do que vai para o servidor, em pixels
 let iimg=null,iurl=null,icrop=null,istr=[],ihist=[],itool='crop',icolor='#c7346d',iw=5,idpr=1;
 let isel=null,istrAtual=null,iarrow=null,itextDrag=null,itbox=null,isavedRange=null;
-let ifsize=1,ibg='rgba(255,255,255,.62)';
+let ifont=0,ibg='rgba(255,255,255,.62)',imove=null;
 
 /* o <dialog> é modal: o cursor do texto se perde ao abrir, então guardamos a
    seleção para a imagem entrar onde o usuário estava escrevendo */
@@ -645,7 +651,7 @@ function openImg(f){
   im.onload=()=>{
     iimg=im;icrop={x:0,y:0,w:im.naturalWidth,h:im.naturalHeight};
     istr=[];ihist=[];isel=null;istrAtual=null;iarrow=null;
-    itxt.hidden=true;itxt.value='';itbox=null;itextDrag=null;$('#ibar').hidden=true;
+    ibox.hidden=true;itxt.value='';itbox=null;itextDrag=null;$('#ibar').hidden=true;
     setTool('crop');
     dimg.showModal();requestAnimationFrame(fit);
   };
@@ -665,12 +671,10 @@ function fit(){
   render();
 }
 
-/* o tamanho base acompanha a imagem; a barra da caixa multiplica esse valor */
+/* o tamanho padrão acompanha a imagem; a barra permite trocar em px */
 function textFont(px){return '600 '+Math.max(1,Math.round(px))+'px Inter,system-ui,sans-serif'}
-function curTextSize(){
-  const base=Math.max(18,Math.min(120,icrop.w/26));
-  return Math.max(10,Math.round(base*ifsize));
-}
+function baseTextSize(){return Math.max(18,Math.min(120,Math.round(icrop.w/26)))}
+function fontPx(){return ifont||baseTextSize()}
 
 /* caixa de texto: fundo opcional, linhas quebradas na largura e centradas na altura */
 function wrapLines(c,text,maxW){
@@ -796,73 +800,125 @@ function setTool(t){
   $('#ihint').textContent=IHINT[t];
 }
 
-/* texto: arraste para demarcar a área; a própria caixa recebe a digitação e,
-   logo acima dela, ficam os botões de tamanho da fonte e de cor de fundo */
+/* texto: arraste para demarcar a área; a caixa pode ser movida arrastando a
+   moldura dela ou a alça da barra, que também define fonte em px e fundo */
+function placeBox(){
+  const k=icv.clientWidth/icrop.w;
+  ibox.style.left=Math.round((itbox.x-icrop.x)*k-7)+'px';
+  ibox.style.top=Math.round((itbox.y-icrop.y)*k-7)+'px';
+  ibox.style.width=Math.round(itbox.w*k+14)+'px';
+  ibox.style.height=Math.round(itbox.h*k+14)+'px';
+}
+function applyFont(px){
+  px=Math.round(px);
+  if(!isFinite(px))return;
+  px=Math.max(6,Math.min(400,px));
+  ifont=px;
+  if(!itbox)return;
+  itbox.size=px;
+  const k=icv.clientWidth/icrop.w;
+  itxt.style.font=textFont(px*k);
+  itxt.style.padding=Math.round(px*k*.35)+'px '+Math.round(px*k*.45)+'px';
+  layoutBar();
+}
 function openTextBox(r){
   const k=icv.clientWidth/icrop.w;
-  itbox={x:r.x,y:r.y,w:Math.max(28,r.w),h:Math.max(22,r.h),size:curTextSize(),bg:ibg};
-  const padX=Math.round(itbox.size*k*.45),padY=Math.round(itbox.size*k*.35);
+  itbox={x:r.x,y:r.y,w:Math.max(28,r.w),h:Math.max(22,r.h),size:fontPx(),bg:ibg};
   itxt.value='';
-  itxt.style.left=Math.round((itbox.x-icrop.x)*k)+'px';
-  itxt.style.top=Math.round((itbox.y-icrop.y)*k)+'px';
-  itxt.style.width=Math.round(itbox.w*k)+'px';
-  itxt.style.height=Math.round(itbox.h*k)+'px';
   itxt.style.font=textFont(itbox.size*k);
   itxt.style.lineHeight='1.3';
-  itxt.style.padding=padY+'px '+padX+'px';
+  itxt.style.padding=Math.round(itbox.size*k*.35)+'px '+Math.round(itbox.size*k*.45)+'px';
   itxt.style.color=icolor;
   itxt.style.background=ibg==='transparent'?'transparent':ibg;
-  itxt.hidden=false;
+  $('#ifs').value=itbox.size;
+  ibox.hidden=false;
+  placeBox();
   layoutBar();
   render();
   itxt.focus();
 }
 /* barra flutuante: acima da caixa; se não couber, logo abaixo */
 function layoutBar(){
+  if(!itbox)return;
   const bar=$('#ibar');
   bar.hidden=false;
-  const bx=parseFloat(itxt.style.left)||0,by=parseFloat(itxt.style.top)||0;
-  const bw=parseFloat(itxt.style.width)||0,bh=parseFloat(itxt.style.height)||0;
-  const barW=bar.offsetWidth||170,barH=bar.offsetHeight||30;
+  const k=icv.clientWidth/icrop.w;
+  const bx=(itbox.x-icrop.x)*k,by=(itbox.y-icrop.y)*k,bh=itbox.h*k;
+  const barW=bar.offsetWidth||230,barH=bar.offsetHeight||32;
   let left=Math.max(0,Math.min(bx,icv.clientWidth-barW));
-  let top=by-barH-8;
-  if(top<0)top=Math.min(Math.max(0,icv.clientHeight-barH),by+bh+8);
+  let top=by-barH-10;
+  if(top<0)top=Math.min(Math.max(0,icv.clientHeight-barH),by+bh+10);
   bar.style.left=Math.round(left)+'px';
   bar.style.top=Math.round(Math.max(0,top))+'px';
 }
 function commitText(cancel){
-  if(!itxt||itxt.hidden)return;
+  if(!itxt||ibox.hidden)return;
   const txt=itxt.value.trim(),box=itbox;
-  itxt.hidden=true;itxt.value='';itbox=null;
+  ibox.hidden=true;itxt.value='';itbox=null;
   $('#ibar').hidden=true;
   if(cancel||!box||!txt){render();return}
   ihist.push({kind:'text'});
   istr.push({kind:'text',color:icolor,x:box.x,y:box.y,w:box.w,h:box.h,size:box.size,bg:box.bg,text:txt});
   render();
 }
+/* mover a caixa: pela moldura (o fundo da caixa já é o campo) ou pela alça da barra */
+function startMove(e){
+  if(!itbox)return;
+  if(e.target!==ibox&&!e.target.closest('#imove'))return;
+  e.preventDefault();
+  const r=icv.getBoundingClientRect(),k=icrop.w/r.width;
+  imove={dx:(e.clientX-r.left)*k-itbox.x,dy:(e.clientY-r.top)*k-itbox.y};
+  try{e.currentTarget.setPointerCapture(e.pointerId)}catch(err){}
+}
+function onMove(e){
+  if(!imove||!itbox)return;
+  const r=icv.getBoundingClientRect(),k=icrop.w/r.width;
+  itbox.x=Math.round(Math.max(icrop.x,Math.min((e.clientX-r.left)*k-imove.dx,icrop.x+icrop.w-itbox.w)));
+  itbox.y=Math.round(Math.max(icrop.y,Math.min((e.clientY-r.top)*k-imove.dy,icrop.y+icrop.h-itbox.h)));
+  placeBox();
+  layoutBar();
+}
+function endMove(){imove=null}
+[ibox,$('#imove')].forEach(el=>{
+  el.addEventListener('pointerdown',startMove);
+  el.addEventListener('pointermove',onMove);
+  el.addEventListener('pointerup',endMove);
+  el.addEventListener('pointercancel',endMove);
+});
 itxt.addEventListener('keydown',e=>{
   if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();commitText(false)}
 });
-itxt.addEventListener('blur',()=>commitText(false));
-/* a barra não pode roubar o foco da caixa, senão o texto seria confirmado */
-$('#ibar').addEventListener('pointerdown',e=>e.preventDefault());
+/* sair do campo confirma, mas focar a barra (campo de px) não pode confirmar */
+itxt.addEventListener('blur',()=>{
+  setTimeout(()=>{
+    const a=document.activeElement;
+    if(a&&a.closest&&a.closest('#ibar'))return;
+    commitText(false);
+  },0);
+});
+/* a barra não rouba o foco da caixa — só o campo de px precisa dele */
+$('#ibar').addEventListener('pointerdown',e=>{
+  if(e.target.closest('#ifs'))return;
+  e.preventDefault();
+});
 $('#ibar').addEventListener('click',e=>{
-  const fs=e.target.closest('[data-fs]');
-  if(fs)return setFontSize(+fs.dataset.fs);
   const bg=e.target.closest('[data-bg]');
   if(bg)return setBg(bg.dataset.bg);
 });
-function setFontSize(f){
-  ifsize=f;
-  $('#ibar').querySelectorAll('[data-fs]').forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.fs===f)));
-  if(!itbox)return;
-  itbox.size=curTextSize();
-  const k=icv.clientWidth/icrop.w;
-  const padX=Math.round(itbox.size*k*.45),padY=Math.round(itbox.size*k*.35);
-  itxt.style.font=textFont(itbox.size*k);
-  itxt.style.padding=padY+'px '+padX+'px';
-  layoutBar();
-}
+$('#ifs').addEventListener('input',e=>{
+  const v=Number(e.target.value);
+  if(e.target.value===''||!isFinite(v)||v<6)return;   // deixa terminar de digitar
+  applyFont(v);
+});
+$('#ifs').addEventListener('change',e=>{
+  const v=Number(e.target.value);
+  applyFont(isFinite(v)&&v>0?v:fontPx());
+  e.target.value=itbox?itbox.size:fontPx();
+});
+/* Enter no campo de px volta para o texto */
+$('#ifs').addEventListener('keydown',e=>{
+  if(e.key==='Enter'){e.preventDefault();itxt.focus()}
+});
 function setBg(v){
   ibg=v;
   $('#ibar').querySelectorAll('[data-bg]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.bg===v)));
@@ -872,14 +928,14 @@ function setBg(v){
 }
 /* Escape com o campo aberto cancela só o texto, sem fechar o editor */
 dimg.addEventListener('cancel',e=>{
-  if(!itxt.hidden){e.preventDefault();commitText(true)}
+  if(!ibox.hidden){e.preventDefault();commitText(true)}
 });
 
 icv.addEventListener('pointerdown',e=>{
   if(!iimg||!icrop||(e.button!==undefined&&e.button!==0))return;
   e.preventDefault();
   /* clique fora da caixa só confirma o texto; a próxima cria outra */
-  if(!itxt.hidden){commitText(false);render();return}
+  if(!ibox.hidden){commitText(false);render();return}
   const p=posOf(e);
   try{icv.setPointerCapture(e.pointerId)}catch(err){}
   if(itool==='text'){itextDrag={x0:p.x,y0:p.y,x1:p.x,y1:p.y};render();return}
@@ -901,7 +957,7 @@ function endStroke(commit){
     if(commit){
       if(r.w>=24&&r.h>=16)openTextBox(r);
       else{
-        const size=curTextSize();
+        const size=fontPx();
         openTextBox({x:r.x,y:r.y,w:Math.min(icrop.w*0.6,Math.max(size*10,240)),h:size*2.1});
       }
     }else render();
@@ -953,7 +1009,7 @@ $('#icancel').onclick=()=>dimg.close();
 dimg.addEventListener('close',()=>{
   if(iurl){URL.revokeObjectURL(iurl);iurl=null}
   iimg=null;icrop=null;istr=[];ihist=[];isel=null;istrAtual=null;iarrow=null;
-  itxt.hidden=true;itxt.value='';itbox=null;itextDrag=null;$('#ibar').hidden=true;
+  ibox.hidden=true;itxt.value='';itbox=null;itextDrag=null;imove=null;$('#ibar').hidden=true;
 });
 window.addEventListener('resize',()=>{if(dimg.open&&iimg){commitText(false);fit()}});
 
