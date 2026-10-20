@@ -191,8 +191,13 @@ dialog .row .btn{width:auto}
 .img-stage{flex:1 1 auto;min-height:0;display:flex;padding:clamp(12px,2vw,22px);
   background:repeating-conic-gradient(#f7f2f9 0 25%,var(--surface) 0 50%) 0 0/20px 20px}
 .img-frame{flex:1 1 auto;min-width:0;min-height:0;display:flex;align-items:center;justify-content:center}
-#icv{max-width:100%;max-height:100%;border-radius:var(--r-sm);background:var(--surface);
+.img-hold{position:relative;display:inline-block;line-height:0}
+#icv{display:block;max-width:100%;max-height:100%;border-radius:var(--r-sm);background:var(--surface);
   box-shadow:0 1px 3px rgba(74,58,94,.16);touch-action:none;cursor:crosshair}
+/* campo que aparece sobre a imagem para digitar a anotação no lugar do clique */
+.itxt{position:absolute;min-width:90px;margin:0;padding:0 2px;border:0;outline:0;
+  border-bottom:1px dashed rgba(74,58,94,.35);background:rgba(255,255,255,.82);border-radius:3px;
+  line-height:1.2}
 
 /* ---------- aviso ---------- */
 #toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:100;
@@ -320,6 +325,14 @@ dialog .row .btn{width:auto}
       <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/><path d="M15 5l4 4"/></svg>
       Caneta
     </button>
+    <button id="iarrow" type="button" aria-pressed="false" title="Flecha (arraste do início ao fim)">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 19 19 5"/><path d="M12 5h7v7"/></svg>
+      Flecha
+    </button>
+    <button id="itext" type="button" aria-pressed="false" title="Texto (clique na imagem e escreva)">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7V5h16v2"/><path d="M12 5v14"/><path d="M9 19h6"/></svg>
+      Texto
+    </button>
     <span class="sep" aria-hidden="true"></span>
     <span id="icolors" role="group" aria-label="Cor do traço">
       <button class="sw" type="button" data-c="#c7346d" style="--sw:#c7346d" title="Rosa" aria-label="Rosa" aria-pressed="true"></button>
@@ -337,7 +350,12 @@ dialog .row .btn{width:auto}
     <button id="iundo" type="button" title="Desfazer o último passo">Desfazer</button>
   </div>
   <div class="img-stage">
-    <div class="img-frame"><canvas id="icv" aria-label="Prévia da imagem"></canvas></div>
+    <div class="img-frame">
+      <div class="img-hold">
+        <canvas id="icv" aria-label="Prévia da imagem"></canvas>
+        <input id="itxt" class="itxt" type="text" hidden autocomplete="off" aria-label="Texto da anotação">
+      </div>
+    </div>
   </div>
 </dialog>
 
@@ -565,11 +583,11 @@ function insertImg(url){
   ed.focus();
 }
 
-/* ---------- ajuste da imagem antes de inserir: recorte e caneta ---------- */
-const dimg=$('#dimg'),icv=$('#icv'),ictx=icv.getContext('2d');
+/* ---------- ajuste da imagem antes de inserir: recorte, caneta, flecha e texto ---------- */
+const dimg=$('#dimg'),icv=$('#icv'),ictx=icv.getContext('2d'),itxt=$('#itxt');
 const IMAX=2400;   // lado maior do que vai para o servidor, em pixels
 let iimg=null,iurl=null,icrop=null,istr=[],ihist=[],itool='crop',icolor='#c7346d',iw=5,idpr=1;
-let isel=null,istrAtual=null,isavedRange=null;
+let isel=null,istrAtual=null,iarrow=null,itxtPos=null,isavedRange=null;
 
 /* o <dialog> é modal: o cursor do texto se perde ao abrir, então guardamos a
    seleção para a imagem entrar onde o usuário estava escrevendo */
@@ -593,7 +611,9 @@ function openImg(f){
   const im=new Image();
   im.onload=()=>{
     iimg=im;icrop={x:0,y:0,w:im.naturalWidth,h:im.naturalHeight};
-    istr=[];ihist=[];isel=null;istrAtual=null;setTool('crop');
+    istr=[];ihist=[];isel=null;istrAtual=null;iarrow=null;
+    itxt.hidden=true;itxt.value='';itxtPos=null;
+    setTool('crop');
     dimg.showModal();requestAnimationFrame(fit);
   };
   im.onerror=()=>{URL.revokeObjectURL(iurl);iurl=null;toast(MSG.tipo)};
@@ -612,12 +632,40 @@ function fit(){
   render();
 }
 
+/* tamanho do texto acompanha a imagem, para continuar legível em prints grandes */
+function textFont(px){return '600 '+Math.max(1,Math.round(px))+'px Inter,system-ui,sans-serif'}
+function textSize(){
+  const base=Math.max(18,Math.min(120,icrop.w/26));
+  return Math.round(base*(iw===2?.75:iw===10?1.5:1));
+}
+
 function paint(c,s,crop,k){
+  const w=Math.max(1,s.w*k);
+  c.strokeStyle=s.color;c.fillStyle=s.color;
+  c.lineCap='round';c.lineJoin='round';
+  if(s.kind==='text'){
+    c.font=textFont(s.size*k);c.textBaseline='top';c.textAlign='left';
+    c.fillText(s.text,(s.x-crop.x)*k,(s.y-crop.y)*k);
+    return;
+  }
+  if(s.kind==='arrow'){
+    const x1=(s.a.x-crop.x)*k,y1=(s.a.y-crop.y)*k;
+    const x2=(s.b.x-crop.x)*k,y2=(s.b.y-crop.y)*k;
+    const ang=Math.atan2(y2-y1,x2-x1),head=Math.max(8,w*4);
+    c.lineWidth=w;
+    c.beginPath();c.moveTo(x1,y1);
+    c.lineTo(x2-head*.6*Math.cos(ang),y2-head*.6*Math.sin(ang));c.stroke();
+    c.beginPath();c.moveTo(x2,y2);
+    c.lineTo(x2-head*Math.cos(ang-.45),y2-head*Math.sin(ang-.45));
+    c.lineTo(x2-head*Math.cos(ang+.45),y2-head*Math.sin(ang+.45));
+    c.closePath();c.fill();
+    return;
+  }
   if(!s.pts.length)return;
-  c.strokeStyle=s.color;c.fillStyle=s.color;c.lineWidth=Math.max(1,s.w*k);
+  c.lineWidth=w;
   if(s.pts.length===1){
     c.beginPath();
-    c.arc((s.pts[0].x-crop.x)*k,(s.pts[0].y-crop.y)*k,Math.max(.6,s.w*k/2),0,Math.PI*2);
+    c.arc((s.pts[0].x-crop.x)*k,(s.pts[0].y-crop.y)*k,Math.max(.6,w/2),0,Math.PI*2);
     c.fill();return;
   }
   c.beginPath();
@@ -635,6 +683,7 @@ function render(){
   ictx.drawImage(iimg,icrop.x,icrop.y,icrop.w,icrop.h,0,0,cw,ch);
   ictx.lineCap='round';ictx.lineJoin='round';
   for(const s of istr)paint(ictx,s,icrop,k);
+  if(iarrow)paint(ictx,{kind:'arrow',color:iarrow.color,w:iarrow.w,a:iarrow.a,b:iarrow.b},icrop,k);
   if(isel){
     const r=normSel(isel);
     ictx.fillStyle='rgba(74,58,94,.34)';
@@ -662,46 +711,100 @@ function posOf(e){
   return {x:icrop.x+(e.clientX-r.left)*k,y:icrop.y+(e.clientY-r.top)*k};
 }
 
+const IHINT={
+  crop:'Arraste sobre a imagem para recortar',
+  pen:'Desenhe sobre a imagem',
+  arrow:'Arraste para desenhar a flecha',
+  text:'Clique na imagem e escreva'
+};
 function setTool(t){
+  commitText(false);
   itool=t;
-  $('#icrop').setAttribute('aria-pressed',String(t==='crop'));
-  $('#ipen').setAttribute('aria-pressed',String(t==='pen'));
-  icv.style.cursor=t==='crop'?'crosshair':'cell';
-  $('#ihint').textContent=t==='crop'?'Arraste sobre a imagem para recortar':'Desenhe sobre a imagem';
+  const ids={crop:'#icrop',pen:'#ipen',arrow:'#iarrow',text:'#itext'};
+  for(const k in ids)$(ids[k]).setAttribute('aria-pressed',String(k===t));
+  icv.style.cursor=t==='text'?'text':t==='pen'?'cell':'crosshair';
+  $('#ihint').textContent=IHINT[t];
 }
+
+/* texto: um campo aparece sobre a imagem no ponto clicado, com a mesma cor e
+   tamanho que a anotação terá; Enter ou sair do campo confirma */
+function openText(p){
+  commitText(false);
+  const k=icv.clientWidth/icrop.w;
+  const size=textSize();
+  itxtPos={x:p.x,y:p.y,size};
+  itxt.value='';
+  itxt.style.color=icolor;
+  itxt.style.font=textFont(size*k);
+  itxt.style.left=Math.round((p.x-icrop.x)*k)+'px';
+  itxt.style.top=Math.round((p.y-icrop.y)*k)+'px';
+  itxt.hidden=false;
+  itxt.focus();
+}
+function commitText(cancel){
+  if(!itxt||itxt.hidden)return;
+  const txt=itxt.value.trim(),pos=itxtPos;
+  itxt.hidden=true;itxt.value='';itxtPos=null;
+  if(cancel||!txt||!pos)return;
+  ihist.push({kind:'text'});
+  istr.push({kind:'text',color:icolor,w:iw,size:pos.size,x:pos.x,y:pos.y,text:txt});
+  render();
+}
+itxt.addEventListener('keydown',e=>{
+  if(e.key==='Enter'){e.preventDefault();commitText(false)}
+});
+itxt.addEventListener('blur',()=>commitText(false));
+/* Escape com o campo aberto cancela só o texto, sem fechar o editor */
+dimg.addEventListener('cancel',e=>{
+  if(!itxt.hidden){e.preventDefault();commitText(true)}
+});
 
 icv.addEventListener('pointerdown',e=>{
   if(!iimg||!icrop||(e.button!==undefined&&e.button!==0))return;
   e.preventDefault();
-  try{icv.setPointerCapture(e.pointerId)}catch(err){}
   const p=posOf(e);
+  if(itool==='text'){openText(p);return}
+  try{icv.setPointerCapture(e.pointerId)}catch(err){}
   if(itool==='crop')isel={x0:p.x,y0:p.y,x1:p.x,y1:p.y};
-  else{ihist.push({kind:'stroke'});istrAtual={color:icolor,w:iw,pts:[p]};istr.push(istrAtual)}
+  else if(itool==='arrow')iarrow={color:icolor,w:iw,a:p,b:p};
+  else{ihist.push({kind:'pen'});istrAtual={kind:'pen',color:icolor,w:iw,pts:[p]};istr.push(istrAtual)}
   render();
 });
 icv.addEventListener('pointermove',e=>{
   if(!icrop)return;
   if(isel){const p=posOf(e);isel.x1=p.x;isel.y1=p.y;render()}
+  else if(iarrow){iarrow.b=posOf(e);render()}
   else if(istrAtual){istrAtual.pts.push(posOf(e));render()}
 });
-function endStroke(){
+function endStroke(commit){
   if(isel){
     const r=normSel(isel);isel=null;
-    if(r.w>=8&&r.h>=8){ihist.push({kind:'crop',prev:{...icrop}});icrop=r;fit()}
+    if(commit&&r.w>=8&&r.h>=8){ihist.push({kind:'crop',prev:{...icrop}});icrop=r;fit()}
     else render();
   }
+  if(iarrow){
+    const a=iarrow.a,b=iarrow.b,col=iarrow.color,ww=iarrow.w;iarrow=null;
+    if(commit&&Math.hypot(b.x-a.x,b.y-a.y)>=6){
+      ihist.push({kind:'arrow'});
+      istr.push({kind:'arrow',color:col,w:ww,a,b});
+    }
+    render();
+  }
+  if(!commit&&istrAtual){istr.pop();ihist.pop()}
   istrAtual=null;
 }
-icv.addEventListener('pointerup',endStroke);
-icv.addEventListener('pointercancel',endStroke);
+icv.addEventListener('pointerup',()=>endStroke(true));
+icv.addEventListener('pointercancel',()=>endStroke(false));
 
 $('#icrop').onclick=()=>setTool('crop');
 $('#ipen').onclick=()=>setTool('pen');
+$('#iarrow').onclick=()=>setTool('arrow');
+$('#itext').onclick=()=>setTool('text');
 $('#icolors').onclick=e=>{
   const b=e.target.closest('[data-c]');if(!b)return;
   icolor=b.dataset.c;
   $('#icolors').querySelectorAll('[data-c]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));
-  setTool('pen');
+  if(itool==='crop')setTool('pen');   // escolher cor já implica desenhar
 };
 $('#isizes').onclick=e=>{
   const b=e.target.closest('[data-w]');if(!b)return;
@@ -709,18 +812,20 @@ $('#isizes').onclick=e=>{
   $('#isizes').querySelectorAll('[data-w]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));
 };
 $('#iundo').onclick=()=>{
+  commitText(false);
   const h=ihist.pop();
   if(!h)return toast('Nada para desfazer.');
-  if(h.kind==='stroke')istr.pop();
-  else{icrop=h.prev;isel=null;istrAtual=null;fit()}
+  if(h.kind==='crop'){icrop=h.prev;isel=null;iarrow=null;fit()}
+  else istr.pop();
   render();
 };
 $('#icancel').onclick=()=>dimg.close();
 dimg.addEventListener('close',()=>{
   if(iurl){URL.revokeObjectURL(iurl);iurl=null}
-  iimg=null;icrop=null;istr=[];ihist=[];isel=null;istrAtual=null;
+  iimg=null;icrop=null;istr=[];ihist=[];isel=null;istrAtual=null;iarrow=null;
+  itxt.hidden=true;itxt.value='';itxtPos=null;
 });
-window.addEventListener('resize',()=>{if(dimg.open&&iimg)fit()});
+window.addEventListener('resize',()=>{if(dimg.open&&iimg){commitText(false);fit()}});
 
 /* o que sai do editor vai para o servidor como PNG, com o mesmo limite de antes */
 function exportImg(){
@@ -738,6 +843,7 @@ function exportImg(){
 
 $('#iins').onclick=async()=>{
   if(!iimg||!icrop)return;
+  commitText(false);
   const b=$('#iins');b.disabled=true;
   try{
     const blob=await exportImg();
