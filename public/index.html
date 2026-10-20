@@ -149,6 +149,30 @@ dialog .row .btn{width:auto}
 #ed:empty:before{content:attr(data-ph);color:#a996b8}
 #ed img{max-width:100%;margin:8px 0;border-radius:10px}
 
+/* ---------- editor de tópico em tela cheia ---------- */
+/* A folha toma a viewport inteira para dar espaço à escrita. O texto fica numa
+   coluna de leitura confortável, com cabeçalho, barra de ferramentas e corpo
+   alinhados por --ed-x (padding simétrico = coluna centrada). */
+#dtopic{--ed-x:max(clamp(16px,3.2vw,34px),calc((100% - 900px)/2));
+  position:fixed;inset:0;margin:0;width:100%;max-width:100%;height:100vh;height:100dvh;
+  max-height:100dvh;padding:0;border:0;border-radius:0;overflow:hidden;background:var(--surface)}
+#dtopic[open]{display:flex;flex-direction:column;animation:ed-in .18s ease}
+@keyframes ed-in{from{opacity:0;transform:translateY(6px)}}
+.ed-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:14px var(--ed-x);border-bottom:1px solid var(--line)}
+#dtopic .ed-head h2{display:flex;align-items:center;gap:8px;margin:0;white-space:nowrap;
+  font:600 13px Inter,system-ui,sans-serif;color:var(--ink-2);letter-spacing:.01em}
+#dtopic .ed-head h2:before{content:"";width:4px;height:13px;border-radius:2px;background:var(--acc)}
+#dtopic #tt{flex:1 1 200px;min-width:120px;margin:0;font:600 16px Inter,system-ui,sans-serif}
+#dtopic #tc{flex:0 1 auto;width:auto;min-width:130px;max-width:210px;margin:0}
+.ed-head-actions{display:flex;gap:8px;margin-left:auto}
+.ed-head-actions .btn{width:auto;margin:0}
+#dtopic .tb{margin:0;padding:10px var(--ed-x);border-bottom:1px solid var(--line)}
+#dtopic #ed{flex:1 1 auto;min-height:0;max-height:none;padding:clamp(18px,2.4vw,32px) var(--ed-x);
+  border:0;border-radius:0;overflow:auto;font-size:15px}
+#dtopic #ed:focus{border-color:transparent;box-shadow:none}
+#dtopic #ed img{border:1px solid var(--line)}
+
 /* ---------- aviso ---------- */
 #toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:100;
   background:#3f3153;color:#fff;padding:11px 18px;border-radius:var(--r-sm);font-size:14px;
@@ -232,10 +256,16 @@ dialog .row .btn{width:auto}
   </div>
 </dialog>
 
-<dialog id="dtopic" aria-label="Tópico">
-  <h2>Tópico</h2>
-  <input id="tt" placeholder="Título do tópico" aria-label="Título do tópico">
-  <select id="tc" aria-label="Categoria do tópico"></select>
+<dialog id="dtopic" aria-label="Editor de tópico">
+  <div class="ed-head">
+    <h2 id="edtitle">Tópico</h2>
+    <input id="tt" placeholder="Título do tópico" aria-label="Título do tópico">
+    <select id="tc" aria-label="Categoria do tópico"></select>
+    <div class="ed-head-actions">
+      <button class="btn ghost" id="tcancel">Cancelar</button>
+      <button class="btn" id="tsave">Salvar</button>
+    </div>
+  </div>
   <div class="tb">
     <button data-c="bold" title="Negrito" aria-label="Negrito"><b>B</b></button>
     <button data-c="italic" title="Itálico" aria-label="Itálico"><i>I</i></button>
@@ -249,10 +279,6 @@ dialog .row .btn{width:auto}
     <input id="file" type="file" accept="image/*" hidden>
   </div>
   <div id="ed" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Corpo do tópico" data-ph="Escreva aqui… cole prints com Ctrl+V"></div>
-  <div class="row">
-    <button class="btn" id="tsave">Salvar tópico</button>
-    <button class="btn ghost" id="tcancel">Cancelar</button>
-  </div>
 </dialog>
 
 <script>
@@ -437,6 +463,7 @@ $('#cdel').onclick=async()=>{
 async function editTopic(id){
   if(!cats.length){toast('Crie uma categoria primeiro.');return}
   eid=id||0;
+  $('#edtitle').textContent=id?'Editar tópico':'Novo tópico';
   const t=id?await api('topic',0,'&id='+id):{title:'',body:'',category_id:cur||cats[0].id};
   $('#tt').value=t.title;$('#ed').innerHTML=t.body;
   $('#tc').innerHTML=cats.map(c=>`<option value="${c.id}" ${c.id==t.category_id?'selected':''}>${esc(c.emoji)} ${esc(c.name)}</option>`).join('');

@@ -7,7 +7,7 @@ Feito para rodar em um servidor próprio, sem Docker e sem dependências além d
 ## Como funciona
 
 - **Categorias** com nome e emoji (a cor é fixa na paleta do app); o emoji é calculado a partir do nome (dicionário de termos contábeis, com fallback determinístico) e pode ser trocado num seletor de emojis; cada tópico pertence a uma categoria.
-- **Tópicos** com título e corpo em HTML leve, com negrito, itálico, títulos, listas e imagens.
+- **Tópicos** com título e corpo em HTML leve, com negrito, itálico, títulos, listas e imagens; a criação/edição abre em tela cheia (título, categoria e ações no topo, texto numa coluna de leitura).
 - **Busca** full-text em português com `unaccent` (buscar "orcamento" encontra "Orçamento") e por prefixo de palavra.
 - **Imagens** coladas com `Ctrl+V` ou enviadas pelo botão 📷; ao excluir um tópico, as imagens que ninguém mais usa são apagadas do disco.
 - **Login** por senha única, com limite de tentativas por IP e sessão em cookie `HttpOnly`/`SameSite=Lax`.
