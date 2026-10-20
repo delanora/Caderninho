@@ -153,16 +153,17 @@ dialog .row .btn{width:auto}
 /* A folha toma a viewport inteira para dar espaço à escrita. O texto fica numa
    coluna de leitura confortável, com cabeçalho, barra de ferramentas e corpo
    alinhados por --ed-x (padding simétrico = coluna centrada). */
-#dtopic{--ed-x:max(clamp(16px,3.2vw,34px),calc((100% - 900px)/2));
-  position:fixed;inset:0;margin:0;width:100%;max-width:100%;height:100vh;height:100dvh;
+#dtopic{--ed-x:max(clamp(16px,3.2vw,34px),calc((100% - 900px)/2))}
+#dimg{--ed-x:clamp(16px,3.2vw,34px)}
+#dtopic,#dimg{position:fixed;inset:0;margin:0;width:100%;max-width:100%;height:100vh;height:100dvh;
   max-height:100dvh;padding:0;border:0;border-radius:0;overflow:hidden;background:var(--surface)}
-#dtopic[open]{display:flex;flex-direction:column;animation:ed-in .18s ease}
+#dtopic[open],#dimg[open]{display:flex;flex-direction:column;animation:ed-in .18s ease}
 @keyframes ed-in{from{opacity:0;transform:translateY(6px)}}
 .ed-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
   padding:14px var(--ed-x);border-bottom:1px solid var(--line)}
-#dtopic .ed-head h2{display:flex;align-items:center;gap:8px;margin:0;white-space:nowrap;
+.ed-head h2{display:flex;align-items:center;gap:8px;margin:0;white-space:nowrap;
   font:600 13px Inter,system-ui,sans-serif;color:var(--ink-2);letter-spacing:.01em}
-#dtopic .ed-head h2:before{content:"";width:4px;height:13px;border-radius:2px;background:var(--acc)}
+.ed-head h2:before{content:"";width:4px;height:13px;border-radius:2px;background:var(--acc)}
 #dtopic #tt{flex:1 1 200px;min-width:120px;margin:0;font:600 16px Inter,system-ui,sans-serif}
 #dtopic #tc{flex:0 1 auto;width:auto;min-width:130px;max-width:210px;margin:0}
 .ed-head-actions{display:flex;gap:8px;margin-left:auto}
@@ -172,6 +173,26 @@ dialog .row .btn{width:auto}
   border:0;border-radius:0;overflow:auto;font-size:15px}
 #dtopic #ed:focus{border-color:transparent;box-shadow:none}
 #dtopic #ed img{border:1px solid var(--line)}
+
+/* ---------- ajuste da imagem antes de inserir ---------- */
+#dimg .ed-head{padding:14px var(--ed-x)}
+#dimg .ed-head small{margin-left:4px;font-size:12px;color:var(--ink-2)}
+.img-tb{align-items:center;margin:0;padding:10px var(--ed-x);border-bottom:1px solid var(--line)}
+.img-tb button[aria-pressed="true"]{border-color:var(--acc);background:var(--soft);color:var(--acc-2)}
+.img-tb .sep{width:1px;height:22px;background:var(--line);margin:0 4px}
+#icolors,#isizes{display:flex;gap:6px}
+.tb .sw{width:22px;height:22px;padding:0;border-radius:50%;border:2px solid var(--surface);
+  background:var(--sw);box-shadow:0 0 0 1px var(--line);cursor:pointer}
+.tb .sw[aria-pressed="true"]{box-shadow:0 0 0 2px var(--sw)}
+.tb .sz{width:28px;height:28px;padding:0;display:inline-flex;align-items:center;justify-content:center}
+.sz i{display:block;border-radius:50%;background:var(--ink-2)}
+.tb .sz[aria-pressed="true"] i{background:var(--acc-2)}
+#iundo{margin-left:auto}
+.img-stage{flex:1 1 auto;min-height:0;display:flex;padding:clamp(12px,2vw,22px);
+  background:repeating-conic-gradient(#f7f2f9 0 25%,var(--surface) 0 50%) 0 0/20px 20px}
+.img-frame{flex:1 1 auto;min-width:0;min-height:0;display:flex;align-items:center;justify-content:center}
+#icv{max-width:100%;max-height:100%;border-radius:var(--r-sm);background:var(--surface);
+  box-shadow:0 1px 3px rgba(74,58,94,.16);touch-action:none;cursor:crosshair}
 
 /* ---------- aviso ---------- */
 #toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:100;
@@ -279,6 +300,45 @@ dialog .row .btn{width:auto}
     <input id="file" type="file" accept="image/*" hidden>
   </div>
   <div id="ed" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Corpo do tópico" data-ph="Escreva aqui… cole prints com Ctrl+V"></div>
+</dialog>
+
+<dialog id="dimg" aria-label="Ajustar imagem">
+  <div class="ed-head">
+    <h2>Ajustar imagem</h2>
+    <small id="ihint">Arraste sobre a imagem para recortar</small>
+    <div class="ed-head-actions">
+      <button class="btn ghost" id="icancel" type="button">Cancelar</button>
+      <button class="btn" id="iins" type="button">Inserir</button>
+    </div>
+  </div>
+  <div class="tb img-tb">
+    <button id="icrop" type="button" aria-pressed="true" title="Recortar (arraste sobre a imagem)">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></svg>
+      Recortar
+    </button>
+    <button id="ipen" type="button" aria-pressed="false" title="Desenhar sobre a imagem">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/><path d="M15 5l4 4"/></svg>
+      Caneta
+    </button>
+    <span class="sep" aria-hidden="true"></span>
+    <span id="icolors" role="group" aria-label="Cor do traço">
+      <button class="sw" type="button" data-c="#c7346d" style="--sw:#c7346d" title="Rosa" aria-label="Rosa" aria-pressed="true"></button>
+      <button class="sw" type="button" data-c="#4a3a5e" style="--sw:#4a3a5e" title="Roxo" aria-label="Roxo" aria-pressed="false"></button>
+      <button class="sw" type="button" data-c="#d92d20" style="--sw:#d92d20" title="Vermelho" aria-label="Vermelho" aria-pressed="false"></button>
+      <button class="sw" type="button" data-c="#0f7b6c" style="--sw:#0f7b6c" title="Verde" aria-label="Verde" aria-pressed="false"></button>
+      <button class="sw" type="button" data-c="#ffffff" style="--sw:#fff" title="Branco" aria-label="Branco" aria-pressed="false"></button>
+    </span>
+    <span class="sep" aria-hidden="true"></span>
+    <span id="isizes" role="group" aria-label="Espessura do traço">
+      <button class="sz" type="button" data-w="2" title="Traço fino" aria-label="Traço fino" aria-pressed="false"><i style="width:5px;height:5px"></i></button>
+      <button class="sz" type="button" data-w="5" title="Traço médio" aria-label="Traço médio" aria-pressed="true"><i style="width:9px;height:9px"></i></button>
+      <button class="sz" type="button" data-w="10" title="Traço grosso" aria-label="Traço grosso" aria-pressed="false"><i style="width:14px;height:14px"></i></button>
+    </span>
+    <button id="iundo" type="button" title="Desfazer o último passo">Desfazer</button>
+  </div>
+  <div class="img-stage">
+    <div class="img-frame"><canvas id="icv" aria-label="Prévia da imagem"></canvas></div>
+  </div>
 </dialog>
 
 <script>
@@ -485,11 +545,219 @@ async function up(f){
   catch(e){toast('Sem conexão com o servidor.');return}
   let j={};try{j=await r.json()}catch(e){}
   if(!r.ok||!j.url){toast(MSG[j.erro]||'Foto não enviada.');return}
-  $('#ed').focus();document.execCommand('insertImage',0,j.url);
+  insertImg(j.url);
 }
+
+/* insere a imagem na posição guardada (o diálogo é modal e tira a seleção do
+   texto, então repor a seleção é o que mantém a foto onde o usuário estava) */
+function insertImg(url){
+  const ed=$('#ed');
+  restoreCaret();
+  const s=getSelection();
+  let r=s.rangeCount?s.getRangeAt(0):null;
+  if(!r||!ed.contains(r.commonAncestorContainer)){
+    r=document.createRange();r.selectNodeContents(ed);r.collapse(false);
+  }
+  const img=document.createElement('img');img.src=url;img.alt='';
+  r.deleteContents();r.insertNode(img);
+  const after=document.createRange();after.setStartAfter(img);after.collapse(true);
+  s.removeAllRanges();s.addRange(after);
+  ed.focus();
+}
+
+/* ---------- ajuste da imagem antes de inserir: recorte e caneta ---------- */
+const dimg=$('#dimg'),icv=$('#icv'),ictx=icv.getContext('2d');
+const IMAX=2400;   // lado maior do que vai para o servidor, em pixels
+let iimg=null,iurl=null,icrop=null,istr=[],ihist=[],itool='crop',icolor='#c7346d',iw=5,idpr=1;
+let isel=null,istrAtual=null,isavedRange=null;
+
+/* o <dialog> é modal: o cursor do texto se perde ao abrir, então guardamos a
+   seleção para a imagem entrar onde o usuário estava escrevendo */
+function saveCaret(){
+  const s=getSelection();
+  isavedRange=(s.rangeCount&&$('#ed').contains(s.anchorNode))?s.getRangeAt(0).cloneRange():null;
+}
+function restoreCaret(){
+  if(!isavedRange)return;
+  const s=getSelection();s.removeAllRanges();
+  try{s.addRange(isavedRange)}catch(e){}
+  isavedRange=null;
+}
+
+function openImg(f){
+  if(!f||!String(f.type).startsWith('image/'))return toast(MSG.tipo);
+  if(!ictx)return toast('Seu navegador não permite ajustar a imagem.');
+  saveCaret();
+  if(iurl)URL.revokeObjectURL(iurl);
+  iurl=URL.createObjectURL(f);
+  const im=new Image();
+  im.onload=()=>{
+    iimg=im;icrop={x:0,y:0,w:im.naturalWidth,h:im.naturalHeight};
+    istr=[];ihist=[];isel=null;istrAtual=null;setTool('crop');
+    dimg.showModal();requestAnimationFrame(fit);
+  };
+  im.onerror=()=>{URL.revokeObjectURL(iurl);iurl=null;toast(MSG.tipo)};
+  im.src=iurl;
+}
+
+function fit(){
+  if(!iimg||!icrop)return;
+  const fr=$('.img-frame').getBoundingClientRect();
+  if(!fr.width||!fr.height)return;
+  const s=Math.min(fr.width/icrop.w,fr.height/icrop.h,2);
+  const cw=Math.max(1,Math.floor(icrop.w*s)),ch=Math.max(1,Math.floor(icrop.h*s));
+  idpr=Math.min(2,window.devicePixelRatio||1);
+  icv.style.width=cw+'px';icv.style.height=ch+'px';
+  icv.width=Math.round(cw*idpr);icv.height=Math.round(ch*idpr);
+  render();
+}
+
+function paint(c,s,crop,k){
+  if(!s.pts.length)return;
+  c.strokeStyle=s.color;c.fillStyle=s.color;c.lineWidth=Math.max(1,s.w*k);
+  if(s.pts.length===1){
+    c.beginPath();
+    c.arc((s.pts[0].x-crop.x)*k,(s.pts[0].y-crop.y)*k,Math.max(.6,s.w*k/2),0,Math.PI*2);
+    c.fill();return;
+  }
+  c.beginPath();
+  s.pts.forEach((p,i)=>i?c.lineTo((p.x-crop.x)*k,(p.y-crop.y)*k):c.moveTo((p.x-crop.x)*k,(p.y-crop.y)*k));
+  c.stroke();
+}
+
+function render(){
+  if(!iimg||!icrop||!ictx)return;
+  const cw=icv.width/idpr,ch=icv.height/idpr,k=cw/icrop.w;
+  ictx.setTransform(idpr,0,0,idpr,0,0);
+  ictx.clearRect(0,0,cw,ch);
+  ictx.fillStyle='#fff';ictx.fillRect(0,0,cw,ch);
+  ictx.imageSmoothingQuality='high';
+  ictx.drawImage(iimg,icrop.x,icrop.y,icrop.w,icrop.h,0,0,cw,ch);
+  ictx.lineCap='round';ictx.lineJoin='round';
+  for(const s of istr)paint(ictx,s,icrop,k);
+  if(isel){
+    const r=normSel(isel);
+    ictx.fillStyle='rgba(74,58,94,.34)';
+    ictx.beginPath();ictx.rect(0,0,cw,ch);
+    ictx.rect((r.x-icrop.x)*k,(r.y-icrop.y)*k,r.w*k,r.h*k);
+    ictx.fill('evenodd');
+    ictx.strokeStyle='#ff78b4';ictx.lineWidth=1.5;ictx.setLineDash([6,4]);
+    ictx.strokeRect((r.x-icrop.x)*k,(r.y-icrop.y)*k,r.w*k,r.h*k);
+    ictx.setLineDash([]);
+  }
+}
+
+/* retângulo do arraste, limitado à área já recortada */
+function normSel(s){
+  const x0=Math.max(icrop.x,Math.min(Math.min(s.x0,s.x1),icrop.x+icrop.w));
+  const y0=Math.max(icrop.y,Math.min(Math.min(s.y0,s.y1),icrop.y+icrop.h));
+  const x1=Math.max(icrop.x,Math.min(Math.max(s.x0,s.x1),icrop.x+icrop.w));
+  const y1=Math.max(icrop.y,Math.min(Math.max(s.y0,s.y1),icrop.y+icrop.h));
+  return {x:x0,y:y0,w:x1-x0,h:y1-y0};
+}
+
+function posOf(e){
+  const r=icv.getBoundingClientRect();
+  const k=icrop.w/r.width;
+  return {x:icrop.x+(e.clientX-r.left)*k,y:icrop.y+(e.clientY-r.top)*k};
+}
+
+function setTool(t){
+  itool=t;
+  $('#icrop').setAttribute('aria-pressed',String(t==='crop'));
+  $('#ipen').setAttribute('aria-pressed',String(t==='pen'));
+  icv.style.cursor=t==='crop'?'crosshair':'cell';
+  $('#ihint').textContent=t==='crop'?'Arraste sobre a imagem para recortar':'Desenhe sobre a imagem';
+}
+
+icv.addEventListener('pointerdown',e=>{
+  if(!iimg||!icrop||(e.button!==undefined&&e.button!==0))return;
+  e.preventDefault();
+  try{icv.setPointerCapture(e.pointerId)}catch(err){}
+  const p=posOf(e);
+  if(itool==='crop')isel={x0:p.x,y0:p.y,x1:p.x,y1:p.y};
+  else{ihist.push({kind:'stroke'});istrAtual={color:icolor,w:iw,pts:[p]};istr.push(istrAtual)}
+  render();
+});
+icv.addEventListener('pointermove',e=>{
+  if(!icrop)return;
+  if(isel){const p=posOf(e);isel.x1=p.x;isel.y1=p.y;render()}
+  else if(istrAtual){istrAtual.pts.push(posOf(e));render()}
+});
+function endStroke(){
+  if(isel){
+    const r=normSel(isel);isel=null;
+    if(r.w>=8&&r.h>=8){ihist.push({kind:'crop',prev:{...icrop}});icrop=r;fit()}
+    else render();
+  }
+  istrAtual=null;
+}
+icv.addEventListener('pointerup',endStroke);
+icv.addEventListener('pointercancel',endStroke);
+
+$('#icrop').onclick=()=>setTool('crop');
+$('#ipen').onclick=()=>setTool('pen');
+$('#icolors').onclick=e=>{
+  const b=e.target.closest('[data-c]');if(!b)return;
+  icolor=b.dataset.c;
+  $('#icolors').querySelectorAll('[data-c]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));
+  setTool('pen');
+};
+$('#isizes').onclick=e=>{
+  const b=e.target.closest('[data-w]');if(!b)return;
+  iw=+b.dataset.w;
+  $('#isizes').querySelectorAll('[data-w]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));
+};
+$('#iundo').onclick=()=>{
+  const h=ihist.pop();
+  if(!h)return toast('Nada para desfazer.');
+  if(h.kind==='stroke')istr.pop();
+  else{icrop=h.prev;isel=null;istrAtual=null;fit()}
+  render();
+};
+$('#icancel').onclick=()=>dimg.close();
+dimg.addEventListener('close',()=>{
+  if(iurl){URL.revokeObjectURL(iurl);iurl=null}
+  iimg=null;icrop=null;istr=[];ihist=[];isel=null;istrAtual=null;
+});
+window.addEventListener('resize',()=>{if(dimg.open&&iimg)fit()});
+
+/* o que sai do editor vai para o servidor como PNG, com o mesmo limite de antes */
+function exportImg(){
+  const k=Math.min(1,IMAX/Math.max(icrop.w,icrop.h));
+  const o=document.createElement('canvas');
+  o.width=Math.max(1,Math.round(icrop.w*k));o.height=Math.max(1,Math.round(icrop.h*k));
+  const c=o.getContext('2d');
+  c.fillStyle='#fff';c.fillRect(0,0,o.width,o.height);
+  c.imageSmoothingQuality='high';
+  c.drawImage(iimg,icrop.x,icrop.y,icrop.w,icrop.h,0,0,o.width,o.height);
+  c.lineCap='round';c.lineJoin='round';
+  for(const s of istr)paint(c,s,icrop,k);
+  return new Promise(res=>o.toBlob(b=>res(b),'image/png'));
+}
+
+$('#iins').onclick=async()=>{
+  if(!iimg||!icrop)return;
+  const b=$('#iins');b.disabled=true;
+  try{
+    const blob=await exportImg();
+    const f=new File([blob],'print.png',{type:'image/png'});
+    dimg.close();
+    await up(f);
+  }catch(e){toast('Não foi possível preparar a imagem.')}
+  finally{b.disabled=false}
+};
+
 $('#pic').onclick=()=>$('#file').click();
-$('#file').onchange=e=>{const f=e.target.files[0];e.target.value='';if(f)up(f)};
-$('#ed').onpaste=e=>{for(const i of e.clipboardData.items)if(i.type.startsWith('image/')){e.preventDefault();up(i.getAsFile())}};
+$('#file').onchange=e=>{const f=e.target.files[0];e.target.value='';if(f)openImg(f)};
+$('#ed').onpaste=e=>{
+  for(const i of e.clipboardData.items){
+    if(!i.type.startsWith('image/'))continue;
+    e.preventDefault();
+    const f=i.getAsFile();if(f)openImg(f);
+    return;
+  }
+};
 
 $('#tsave').onclick=async()=>{
   if(!$('#tt').value.trim())return $('#tt').focus();
