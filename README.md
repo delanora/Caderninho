@@ -41,7 +41,8 @@ O script pergunta a senha de acesso do app e o domínio/IP e então:
 4. copia `public/` para `/var/www/caderninho/public`;
 5. grava o `.env` fora do diretório público, com permissão `600`;
 6. configura o site no nginx (com `/.user.ini` e uploads não executáveis) e recarrega os serviços;
-7. opcionalmente emite certificado HTTPS via Certbot, se o host for um domínio.
+7. instala a rotina de backup diária (script + timer do systemd, retenção de 7 dias);
+8. opcionalmente emite certificado HTTPS via Certbot, se o host for um domínio.
 
 Ao final: acesse `http://SEU_HOST` e entre com a senha informada.
 
@@ -221,21 +222,43 @@ Todas as respostas são JSON. Leitura por `GET`, escrita por `POST` (com `X-CSRF
 
 ## Backup
 
-Três coisas precisam de backup: o banco, as imagens em `public/uploads` e o `.env` (sem ele a instalação não sobe — guarde-o em local seguro, não junto do backup público).
+O backup é **automático**: um timer do systemd roda `/usr/local/bin/caderninho-backup` todo dia **às 03:17** (com até 20 minutos de variação) e grava **um arquivo por dia** em `/var/backups/caderninho/` — permissão `600`, dentro de um diretório `700`. A **retenção é de 7 dias**: ao gravar o oitavo, o mais antigo é apagado.
 
-O app guarda o conteúdo no PostgreSQL e as imagens em `public/uploads`:
+Cada pacote é um `.tar.gz` com duas coisas:
+
+| Dentro do pacote | O que é |
+|---|---|
+| `db.dump` | banco inteiro no formato `pg_dump -Fc` |
+| `uploads/` | as imagens dos tópicos |
+
+O `.env` (ou `config.php`) **não entra** de propósito: ele guarda a senha do banco e o hash de acesso. Guarde-o em local separado — sem ele a instalação não sobe, embora o conteúdo possa ser restaurado em qualquer instalação nova.
+
+Cada execução confere o dump com `pg_restore -l` antes de dar o backup como bom, e grava o arquivo por `rename` (nunca aparece pela metade). Se algo falhar, o serviço termina em erro e o arquivo do dia não é criado. Se o servidor estiver desligado no horário, o `Persistent=true` do timer roda o backup assim que ele ligar.
+
+O pacote fica **no mesmo servidor**: isso protege de erro humano e de banco corrompido, não de perda do disco ou da máquina. Copie `/var/backups/caderninho/` para fora periodicamente (`rsync`, `scp`, armazenamento externo).
+
+Comandos úteis:
 
 ```bash
-pg_dump -h localhost -U caderninho -Fc caderninho > caderninho-$(date +%F).dump
-tar czf uploads-$(date +%F).tar.gz -C /var/www/caderninho/public uploads
+sudo systemctl start caderninho-backup              # rodar agora
+systemctl list-timers caderninho-backup.timer       # quando roda a próxima vez
+journalctl -u caderninho-backup -n 30               # o que aconteceu nas execuções
+ls -la /var/backups/caderninho                      # arquivos guardados
 ```
 
-Restauração:
+Para mudar horário ou retenção, edite `OnCalendar=` em `/etc/systemd/system/caderninho-backup.timer` ou `Environment=BACKUP_KEEP=` no `.service` e rode `sudo systemctl daemon-reload && sudo systemctl restart caderninho-backup.timer`. Rodar o `install.sh` de novo reescreve as duas units com os padrões; para mudar de forma permanente, use `sudo BACKUP_KEEP=14 ./install.sh` (o mesmo vale para `BACKUP_DIR`).
+
+### Restaurar
 
 ```bash
-pg_restore -h localhost -U caderninho -d caderninho --clean --if-exists caderninho-AAAA-MM-DD.dump
-tar xzf uploads-AAAA-MM-DD.tar.gz -C /var/www/caderninho/public
+mkdir -p /tmp/restore
+tar xzf /var/backups/caderninho/caderninho-AAAA-MM-DD.tar.gz -C /tmp/restore
+pg_restore -h localhost -U caderninho -d caderninho --clean --if-exists /tmp/restore/db.dump
+cp -a /tmp/restore/uploads/. /var/www/caderninho/public/uploads/
+chown -R www-data:www-data /var/www/caderninho/public/uploads
 ```
+
+O backup manual (sem o timer) continua possível: `sudo APP_DIR=/var/www/caderninho /usr/local/bin/caderninho-backup`, ou direto do repositório com `sudo ./backup.sh`.
 
 ## Atualização
 
@@ -262,6 +285,8 @@ tar xzf uploads-AAAA-MM-DD.tar.gz -C /var/www/caderninho/public
 - **Link só com esquema**: `exemplo.com` sem `https://` ou `www.` fica texto puro (não há adivinhação de domínio). Endereços antigos, gravados como texto antes desta versão, viram link na leitura.
 - **Expurgo da lixeira é oportunista**: roda quando a lista, a lixeira ou as categorias são consultadas (não há cron). Um tópico pode passar dos 30 dias e só ser apagado no próximo acesso ao app.
 - **Excluir a categoria apaga para sempre** os tópicos dela, inclusive os que estavam na lixeira — a lixeira não protege contra exclusão de categoria.
+- **Backup no mesmo servidor**: os pacotes ficam em `/var/backups/caderninho`, no mesmo disco do banco — protege de erro humano, não de perda da máquina; a cópia para fora é manual.
+- **Backup diário, sem point-in-time**: mudanças feitas depois das 03:17 só existem no pacote do dia seguinte.
 - **Sem suíte de testes automatizados** no repositório.
 
 ## Licença

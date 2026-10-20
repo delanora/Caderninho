@@ -12,10 +12,70 @@ ENVFILE="$DIR/.env"
 CONF="$DIR/config.php"   # formato antigo, ainda aceito pelo app
 DB_NAME="${DB_NAME:-caderninho}"
 DB_USER="${DB_USER:-caderninho}"
+BACKUP_DIR="${BACKUP_DIR:-/var/backups/caderninho}"
+BACKUP_KEEP="${BACKUP_KEEP:-7}"
 
 say() { printf '\n\033[1m== %s\033[0m\n' "$*"; }
 die() { printf 'erro: %s\n' "$*" >&2; exit 1; }
 warn() { printf '\033[33maviso: %s\033[0m\n' "$*"; }
+
+# Rotina de backup diária: script em /usr/local/bin + timer do systemd.
+# Reexecutar é seguro (sobrescreve as units e reinicia o agendamento).
+instalar_backup() {
+  say "Backup diário"
+  if [ ! -f "$SRC/backup.sh" ]; then
+    warn "backup.sh não encontrado em $SRC: rotina de backup não instalada"
+    return 0
+  fi
+
+  install -m 0755 "$SRC/backup.sh" /usr/local/bin/caderninho-backup
+  install -d -m 0700 -o root -g root "$BACKUP_DIR"
+
+  cat >/etc/systemd/system/caderninho-backup.service <<UNIT
+[Unit]
+Description=Backup do Caderninho (banco + imagens)
+Documentation=file:///usr/local/bin/caderninho-backup
+After=postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=oneshot
+Environment=APP_DIR=$DIR
+Environment=BACKUP_DIR=$BACKUP_DIR
+Environment=BACKUP_KEEP=$BACKUP_KEEP
+ExecStart=/usr/local/bin/caderninho-backup
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=30min
+UNIT
+
+  cat >/etc/systemd/system/caderninho-backup.timer <<UNIT
+[Unit]
+Description=Backup diário do Caderninho (retenção de $BACKUP_KEEP dias)
+
+[Timer]
+OnCalendar=*-*-* 03:17:00
+RandomizedDelaySec=20min
+Persistent=true
+Unit=caderninho-backup.service
+
+[Install]
+WantedBy=timers.target
+UNIT
+
+  if command -v systemctl >/dev/null && systemctl is-system-running >/dev/null 2>&1; then
+    systemctl daemon-reload >/dev/null 2>&1 || warn "recarregue o systemd manualmente (systemctl daemon-reload)"
+    systemctl enable --now caderninho-backup.timer >/dev/null 2>&1 \
+      || warn "não foi possível habilitar caderninho-backup.timer"
+    if systemctl start caderninho-backup.service >/dev/null 2>&1; then
+      echo "Primeiro backup gravado em $BACKUP_DIR"
+    else
+      warn "o primeiro backup falhou; veja: journalctl -u caderninho-backup"
+    fi
+  else
+    warn "systemd indisponível: agende /usr/local/bin/caderninho-backup no cron (diário)"
+  fi
+}
 
 [ -f "$SRC/schema.sql" ] || die "schema.sql não encontrado em $SRC"
 [ -f "$SRC/public/api.php" ] || die "public/api.php não encontrado em $SRC"
@@ -159,7 +219,9 @@ if [[ "${HOST:-}" =~ ^[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]] && ! [ -e /etc/letsencryp
   fi
 fi
 
+instalar_backup
+
 say "Pronto"
 echo "Acesse http://$HOST e entre com a senha informada."
 echo "Configuração: $ENVFILE (não versionar, permissão 600)"
-echo "Backup: veja a seção Backup do README.md"
+echo "Backup: diário às 03:17, retenção de $BACKUP_KEEP dias, em $BACKUP_DIR"
