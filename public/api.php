@@ -81,6 +81,7 @@ const MAX_BODY_BYTES     = 500000;
 const TOPICS_LIMIT_MAX   = 200;
 const LOGIN_MAX_ATTEMPTS = 8;
 const LOGIN_WINDOW_MIN   = 15;
+const TRASH_DAYS         = 30;   // dias que um tópico excluído fica na lixeira
 
 // div entra na lista porque é o parágrafo que o navegador cria ao colar HTML
 // pronto; sem ele a quebra de linha do texto colado desaparecia.
@@ -356,6 +357,28 @@ function body_uploads(string $body): array
     return array_values(array_unique($m[0]));
 }
 
+/**
+ * Expurgo da lixeira: apaga de vez o que passou de TRASH_DAYS. Roda de forma
+ * oportunista nas ações que mexem na lista, então não depende de cron.
+ */
+function trash_expired(): void
+{
+    $rows = q(
+        'select body from topics where deleted_at is not null and deleted_at < now() - make_interval(days => ?)',
+        [TRASH_DAYS]
+    )->fetchAll(PDO::FETCH_COLUMN);
+    if (!$rows) {
+        return;
+    }
+    q(
+        'delete from topics where deleted_at is not null and deleted_at < now() - make_interval(days => ?)',
+        [TRASH_DAYS]
+    );
+    foreach ($rows as $body) {
+        purge_orphans(body_uploads((string) $body));
+    }
+}
+
 /** Apaga do disco as imagens que não estão mais referenciadas por nenhum tópico. */
 function purge_orphans(array $urls): void
 {
@@ -501,10 +524,11 @@ try {
 
     switch ($a) {
         case 'cats':
+            trash_expired();
             $rows = q(
                 'select c.id, c.name, c.emoji, c.color, count(t.id) as n
                    from categories c
-                   left join topics t on t.category_id = c.id
+                   left join topics t on t.category_id = c.id and t.deleted_at is null
                   group by c.id
                   order by lower(c.name)'
             )->fetchAll();
@@ -547,7 +571,8 @@ try {
             out(['ok' => 1]);
 
         case 'topics':
-            $where = [];
+            trash_expired();
+            $where = ['t.deleted_at is null'];
             $params = [];
             $cat = isset($_GET['cat']) ? (int) $_GET['cat'] : 0;
             if ($cat > 0) {
@@ -586,7 +611,7 @@ try {
             $row = $id > 0 ? q(
                 'select t.id, t.title, t.body, t.category_id, t.created_at, t.updated_at, c.name as cat
                    from topics t join categories c on c.id = t.category_id
-                  where t.id = ?',
+                  where t.id = ? and t.deleted_at is null',
                 [$id]
             )->fetch() : false;
             if (!$row) {
@@ -606,7 +631,7 @@ try {
                 out(['erro' => 'categoria_inexistente'], 400);
             }
             if ($id > 0) {
-                $old = q('select body from topics where id = ?', [$id])->fetchColumn();
+                $old = q('select body from topics where id = ? and deleted_at is null', [$id])->fetchColumn();
                 if ($old === false) {
                     out(['erro' => 'nao_encontrado'], 404);
                 }
@@ -625,14 +650,68 @@ try {
             purge_orphans(array_diff(body_uploads($oldBody), body_uploads($body)));
             out(['id' => $id]);
 
+        // Exclusão normal: confere o título digitado e manda para a lixeira.
         case 'topic_del':
-            $id = int_field($in, 'id');
-            $body = q('select body from topics where id = ?', [$id])->fetchColumn();
-            if ($body === false) {
+            trash_expired();
+            $id    = int_field($in, 'id');
+            $title = str_field($in, 'title', 200);
+            $row = q('select title from topics where id = ? and deleted_at is null', [$id])->fetch();
+            if (!$row) {
                 out(['erro' => 'nao_encontrado'], 404);
             }
+            if ($title !== (string) $row['title']) {
+                out(['erro' => 'titulo_nao_confere'], 400);
+            }
+            q('update topics set deleted_at = now() where id = ?', [$id]);
+            out(['ok' => 1, 'dias' => TRASH_DAYS]);
+
+        // Lista da lixeira, com quantos dias ainda restam para cada tópico.
+        case 'trash':
+            trash_expired();
+            $rows = q(
+                'select t.id, t.title, t.deleted_at, c.name as cat, c.emoji, c.color,
+                        greatest(0, ceil(extract(epoch from (t.deleted_at + make_interval(days => ?) - now())) / 86400))::int as dias
+                   from topics t join categories c on c.id = t.category_id
+                  where t.deleted_at is not null
+                  order by t.deleted_at desc',
+                [TRASH_DAYS]
+            )->fetchAll();
+            foreach ($rows as &$r) {
+                $r['id']   = (int) $r['id'];
+                $r['dias'] = (int) $r['dias'];
+            }
+            unset($r);
+            out($rows);
+
+        // Restaurar: o usuário escolhe a categoria de destino.
+        case 'trash_restore':
+            $id    = int_field($in, 'id');
+            $catId = int_field($in, 'category_id');
+            if (!category_exists($catId)) {
+                out(['erro' => 'categoria_inexistente'], 400);
+            }
+            $n = q(
+                'update topics set deleted_at = null, category_id = ? where id = ? and deleted_at is not null',
+                [$catId, $id]
+            )->rowCount();
+            if ($n === 0) {
+                out(['erro' => 'nao_encontrado'], 404);
+            }
+            out(['ok' => 1, 'id' => $id]);
+
+        // Exclusão definitiva: exige o título de novo e apaga o tópico para sempre.
+        case 'trash_del':
+            $id    = int_field($in, 'id');
+            $title = str_field($in, 'title', 200);
+            $row = q('select title, body from topics where id = ? and deleted_at is not null', [$id])->fetch();
+            if (!$row) {
+                out(['erro' => 'nao_encontrado'], 404);
+            }
+            if ($title !== (string) $row['title']) {
+                out(['erro' => 'titulo_nao_confere'], 400);
+            }
             q('delete from topics where id = ?', [$id]);
-            purge_orphans(body_uploads((string) $body));
+            purge_orphans(body_uploads((string) $row['body']));
             out(['ok' => 1]);
 
         case 'upload':

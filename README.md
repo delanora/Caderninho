@@ -8,6 +8,7 @@ Feito para rodar em um servidor próprio, sem Docker e sem dependências além d
 
 - **Categorias** com nome e emoji (a cor é fixa na paleta do app); o emoji é calculado a partir do nome (dicionário de termos contábeis, com fallback determinístico) e pode ser trocado num seletor de emojis; cada tópico pertence a uma categoria.
 - **Tópicos** com título e corpo em HTML leve, com negrito, itálico, títulos, listas e imagens; `Enter` abre um parágrafo novo e `Shift+Enter` quebra a linha dentro do mesmo parágrafo (o corpo guarda `<p>`, `<div>` e `<br>`, então as quebras sobrevivem ao salvar); a criação/edição abre em tela cheia (título, categoria e ações no topo, texto numa coluna de leitura).
+- **Lixeira**: excluir um tópico pede o título digitado como confirmação e o manda para a lixeira, onde ele fica **30 dias** (o próprio diálogo explica o prazo). Na lixeira dá para **restaurar** — escolhendo a categoria de destino — ou **excluir de vez**, com aviso de ação destrutiva e o título digitado de novo. Depois dos 30 dias o tópico (e as imagens que só ele usava) é apagado automaticamente.
 - **Links** digitados no tópico (`https://…` ou `www.…`) viram âncoras ao concluir a palavra, colar ou salvar; abrem em nova aba ao clicar no tópico (`Ctrl`+clique dentro do editor). Corrigir o endereço desfaz a âncora e ela é refeita com o destino novo.
 - **Busca** full-text em português com `unaccent` (buscar "orcamento" encontra "Orçamento") e por prefixo de palavra.
 - **Imagens** coladas com `Ctrl+V` ou enviadas pelo botão 📷 abrem antes num editor em tela cheia, onde dá para recortar (arrastando sobre a imagem), desenhar à mão, traçar flechas e escrever texto por cima (arraste para demarcar a área da caixa de texto, que pode ser movida depois pela moldura ou pela alça da barra; acima dela ficam o tamanho da fonte em px e o fundo, branco translúcido por padrão; a caixa cresce em altura enquanto se digita, voltando ao tamanho demarcado ao apagar) — 5 cores, 3 espessuras e desfazer (botão ou `Ctrl+Z`); só o resultado é enviado e inserido no ponto do texto onde o cursor estava. Ao excluir um tópico, as imagens que ninguém mais usa são apagadas do disco.
@@ -244,7 +245,7 @@ tar xzf uploads-AAAA-MM-DD.tar.gz -C /var/www/caderninho/public
    PGPASSWORD='senha-do-banco' psql -h localhost -U caderninho -d caderninho -v ON_ERROR_STOP=1 -f schema.sql
    ```
 
-   Em bancos criados por versões anteriores isso adiciona `created_at`, cria `login_attempts` e remove a coluna morta `parent_id`. Em banco novo, nada acontece.
+   Em bancos criados por versões anteriores isso adiciona `created_at`, `deleted_at` (a lixeira, com índice próprio), cria `login_attempts` e remove a coluna morta `parent_id`. Em banco novo, nada acontece.
 
 ## Limitações conhecidas
 
@@ -258,6 +259,8 @@ tar xzf uploads-AAAA-MM-DD.tar.gz -C /var/www/caderninho/public
 - **Fontes vêm do Google Fonts** (requer internet; para uso offline, hospede as fontes localmente).
 - **Sem migrações numeradas**: o `schema.sql` é idempotente, mas alterações estruturais futuras precisam ser escritas nele (com `IF NOT EXISTS`/`ADD COLUMN IF NOT EXISTS`).
 - **Link só com esquema**: `exemplo.com` sem `https://` ou `www.` fica texto puro (não há adivinhação de domínio). Endereços antigos, gravados como texto antes desta versão, viram link na leitura.
+- **Expurgo da lixeira é oportunista**: roda quando a lista, a lixeira ou as categorias são consultadas (não há cron). Um tópico pode passar dos 30 dias e só ser apagado no próximo acesso ao app.
+- **Excluir a categoria apaga para sempre** os tópicos dela, inclusive os que estavam na lixeira — a lixeira não protege contra exclusão de categoria.
 - **Sem suíte de testes automatizados** no repositório.
 
 ## Licença

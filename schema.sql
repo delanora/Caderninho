@@ -37,6 +37,9 @@ CREATE TABLE IF NOT EXISTS topics (
 -- Atualização de bancos criados por versões anteriores (no-op em banco novo).
 ALTER TABLE categories ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
 ALTER TABLE topics     ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
+-- Lixeira: tópico excluído só ganha data; o expurgo apaga de vez depois de 30 dias.
+ALTER TABLE topics ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
+CREATE INDEX IF NOT EXISTS topics_deleted_idx ON topics (deleted_at) WHERE deleted_at IS NOT NULL;
 -- parent_id nunca foi usado pelo app; subcategorias não existem.
 ALTER TABLE categories DROP COLUMN IF EXISTS parent_id;
 -- A cor das categorias é fixa na paleta do app (a opção saiu da interface).
