@@ -183,6 +183,12 @@ html[data-theme="dark"] .cat:hover{background:color-mix(in srgb,var(--c,var(--ca
 .doc .body img{display:block;max-width:100%;margin:12px 0;border-radius:10px;border:1px solid var(--line)}
 .doc .body a{color:var(--acc-2);text-decoration:underline;text-underline-offset:2px;word-break:break-word}
 .doc .row{display:flex;gap:8px;margin-top:22px;padding-top:18px;border-top:1px solid var(--line)}
+/* "voltar" à esquerda, "exportar PDF" no canto oposto */
+.doc-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+.doc-top .btn{width:auto;margin:0}
+.doc-top .btn svg{width:15px;height:15px;flex-shrink:0}
+/* linha que só existe no papel/PDF: de onde o tópico saiu e quando */
+.print-head{display:none}
 
 /* ---------- diálogos ---------- */
 dialog{border:1px solid var(--line);border-radius:var(--r-lg);padding:26px;width:min(680px,94vw);
@@ -321,6 +327,33 @@ dialog .row .btn{width:auto}
   .cat .name{flex:0 0 auto}
   main{padding:20px}
   .doc{padding:22px 20px}
+}
+/* ---------- impressão / exportar em PDF ---------- */
+/* esconde a moldura do app e imprime só o tópico, sempre em papel claro
+   (mesmo no modo noturno), com o endereço dos links visível no papel */
+@media print{
+  @page{margin:16mm 14mm}
+  :root,html[data-theme="dark"]{color-scheme:light;
+    --bg:#fff;--surface:#fff;--ink:#1a1a1a;--ink-2:#555;--line:#ddd;--line-strong:#bbb;
+    --acc-2:#9c2b59;--soft:#f4f4f4;--glow-b:transparent;--aside-bg:#fff;
+    --shadow:none;--shadow-hover:none}
+  html,body{background:#fff!important}
+  body{min-height:0;font-size:12pt}
+  #app{display:block;min-height:0}
+  aside,.top,.doc-top,.doc .row,#toast,#login{display:none!important}
+  main{padding:0;flex:none}
+  .card{border:0;border-radius:0;box-shadow:none;background:#fff}
+  .doc{padding:0}
+  .print-head{display:block;margin:0 0 10pt;padding-bottom:5pt;border-bottom:1px solid #ddd;
+    font:9pt/1.3 Inter,system-ui,sans-serif;color:#666}
+  .doc h1{font-size:22pt;margin:0 0 4pt}
+  .doc .meta{font-size:9.5pt;color:#555}
+  .doc .body{margin-top:10pt}
+  .doc .body img{border:1px solid #ddd;border-radius:0;break-inside:avoid;page-break-inside:avoid}
+  .doc .body a{color:#9c2b59}
+  .doc .body a[href^="http"]:after{content:" (" attr(href) ")";font-size:8.5pt;color:#666;word-break:break-all}
+  h1,h2{break-after:avoid;page-break-after:avoid}
+  p,li{orphans:3;widows:3}
 }
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
@@ -607,6 +640,7 @@ dcat.addEventListener('cancel',e=>{if($('#cepop').classList.contains('open')){e.
 const svg=(d,w=16)=>`<svg viewBox="0 0 24 24" width="${w}" height="${w}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 const ICON_ALL=svg('<path d="M4 7.5 12 4l8 3.5-8 3.5z"/><path d="m4 12 8 3.5 8-3.5"/><path d="m4 16.5 8 3.5 8-3.5"/>',15);
 const ICON_EDIT=svg('<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',14);
+const ICON_PDF=svg('<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/>',15);
 const ICON_NOTE=`<svg viewBox="0 0 48 48" fill="none" aria-hidden="true">
   <path d="M10 8.5A2.5 2.5 0 0 1 12.5 6h23A2.5 2.5 0 0 1 38 8.5v31a2.5 2.5 0 0 1-2.5 2.5h-23A2.5 2.5 0 0 1 10 39.5z" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/>
   <path d="M16.5 6v36" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" opacity=".4"/>
@@ -681,13 +715,35 @@ $('#view').onkeydown=e=>{if(!isActivate(e))return;const c=e.target.closest('.tp'
 async function show(id,contar=true){
   const t=await api('topic',0,'&id='+id+(contar?'&hit=1':''));
   const when=t.updated_at?new Date(t.updated_at).toLocaleDateString('pt-BR'):'';
-  $('#view').innerHTML=`<div class="card doc"><button class="btn ghost" style="width:auto;margin:0 0 14px" id="back">← Voltar</button><h1>${esc(t.title)}</h1><div class="meta">${esc(t.cat)}${when?' · atualizado em '+when:''}</div><div class="body">${t.body}</div><div class="row"><button class="btn" id="tedit">Editar</button><button class="btn ghost" style="width:auto;margin:0" id="tdel">Excluir</button></div></div>`;
+  const hoje=new Date().toLocaleDateString('pt-BR');
+  $('#view').innerHTML=`<div class="card doc">
+    <div class="doc-top">
+      <button class="btn ghost" id="back">← Voltar</button>
+      <button class="btn ghost" id="tpdf" title="Exportar este tópico em PDF">${ICON_PDF}Exportar PDF</button>
+    </div>
+    <p class="print-head">Caderninho · ${esc(t.cat)} · exportado em ${hoje}</p>
+    <h1>${esc(t.title)}</h1>
+    <div class="meta">${esc(t.cat)}${when?' · atualizado em '+when:''}</div>
+    <div class="body">${t.body}</div>
+    <div class="row"><button class="btn" id="tedit">Editar</button><button class="btn ghost" style="width:auto;margin:0" id="tdel">Excluir</button></div>
+  </div>`;
   // corpo gravado antes desta versão (ou colado inteiro) traz o endereço em
   // texto puro: vira link também na leitura, não só o que foi digitado agora
   linkifyTree($('#view .body'));
   $('#back').onclick=()=>list().catch(()=>{});
+  $('#tpdf').onclick=()=>exportPdf(t.title);
   $('#tedit').onclick=()=>editTopic(t.id).catch(()=>{});
   $('#tdel').onclick=()=>delTopic(t.id);
+}
+/* Exporta pelo diálogo do navegador ("Salvar como PDF"): nada de dependência
+   externa e o resultado é fiel ao que está na tela. O título da aba vira o
+   nome sugerido do arquivo durante a impressão e volta depois. */
+function exportPdf(title){
+  const antes=document.title;
+  const restaurar=()=>{document.title=antes;window.removeEventListener('afterprint',restaurar)};
+  window.addEventListener('afterprint',restaurar);
+  document.title=title||antes;
+  window.print();
 }
 /* ---------- exclusão: confirmação pelo título e lixeira de 30 dias ---------- */
 const DIAS_LIXEIRA=30;
