@@ -332,7 +332,10 @@ dialog .row .btn{width:auto}
 /* esconde a moldura do app e imprime só o tópico, sempre em papel claro
    (mesmo no modo noturno), com o endereço dos links visível no papel */
 @media print{
-  @page{margin:16mm 14mm}
+  /* 8 mm no topo/base: abaixo do que o Chrome precisa para desenhar os
+     cabeçalhos/rodapés automáticos dele (data, título, endereço, página) —
+     com 9 mm ou mais eles voltam a aparecer. As laterais seguem folgadas. */
+  @page{margin:8mm 14mm}
   :root,html[data-theme="dark"]{color-scheme:light;
     --bg:#fff;--surface:#fff;--ink:#1a1a1a;--ink-2:#555;--line:#ddd;--line-strong:#bbb;
     --acc-2:#9c2b59;--soft:#f4f4f4;--glow-b:transparent;--aside-bg:#fff;
