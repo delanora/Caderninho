@@ -1,4 +1,4 @@
-# Caderninho 🌸
+# Caderninho
 
 Wiki pessoal de página única para guardar anotações, procedimentos e prints organizados por categorias, com busca em português que ignora acentos.
 
@@ -171,6 +171,18 @@ rm /var/www/caderninho/config.php   # depois de conferir que o login funciona
 O limite de upload fica em `public/.user.ini` (`upload_max_filesize = 10M`, `post_max_size = 12M`), alinhado ao `client_max_body_size 12M` do nginx.
 
 Esse arquivo é **copiado do repositório** a cada `install.sh`: para mudar o limite de forma permanente, edite `public/.user.ini` no repositório, ajuste o `client_max_body_size` no nginx e rode o instalador de novo (editar só a cópia em `/var/www` funciona até a próxima atualização).
+
+### "Banco de dados indisponível"
+
+Essa mensagem vem do `api.php` quando o PDO não consegue abrir conexão — o app está no ar, o PostgreSQL não. O log do nginx diz o motivo exato:
+
+```bash
+sudo tail -5 /var/log/nginx/error.log      # procure "caderninho: banco indisponível"
+pg_lsclusters                              # o cluster 17/main precisa estar "online"
+sudo systemctl status postgresql@17-main   # por que não subiu
+```
+
+Se o cluster estiver `down`, suba com `sudo systemctl start postgresql@17-main`. Causa comum: no boot, algo ainda ocupava a porta 5432 quando o cluster tentou subir (`could not bind IPv4 address "127.0.0.1": Address already in use`) e o systemd desistiu. Se acontecer de novo, verifique quem está na porta (`sudo ss -ltnp | grep 5432`) e considere um drop-in `/etc/systemd/system/postgresql@17-main.service.d/retry.conf` com `[Service]` → `Restart=on-failure` e `RestartSec=15` para o cluster tentar de novo sozinho.
 
 ## Segurança
 
