@@ -132,13 +132,16 @@ main{flex:1;min-width:0;padding:28px 32px}
   background:var(--surface) var(--search-icon) 15px center/17px no-repeat}
 
 /* ---------- categorias ---------- */
+/* o fundo da barra é UM só, igual ao de "Tudo", inclusive no item selecionado:
+   a cor da categoria continua nos cartões (borda do tópico), não aqui */
 .cat{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:var(--r-sm);cursor:pointer;
   border:1px solid transparent;font-size:14.5px;
-  background:color-mix(in srgb,var(--c,var(--cat)) 18%,var(--surface));transition:background .15s,box-shadow .15s}
-.cat:hover{background:color-mix(in srgb,var(--c,var(--cat)) 30%,var(--surface))}
+  background:color-mix(in srgb,var(--cat) 18%,var(--surface));transition:background .15s,box-shadow .15s}
+.cat:hover{background:color-mix(in srgb,var(--cat) 30%,var(--surface))}
 /* no escuro o tom pastel clareia mais: 24% mantém o texto secundário em AA */
-html[data-theme="dark"] .cat:hover{background:color-mix(in srgb,var(--c,var(--cat)) 24%,var(--surface))}
-.cat.on{box-shadow:inset 2px 0 0 rgba(255,120,180,.7)}  /* fundo igual ao dos demais */
+html[data-theme="dark"] .cat:hover{background:color-mix(in srgb,var(--cat) 24%,var(--surface))}
+/* selecionado: mesma cor de fundo dos demais, só a barra da esquerda e o peso marcam */
+.cat.on{box-shadow:inset 2px 0 0 rgba(255,120,180,.7)}
 .cat.on .name{font-weight:600}
 .cat>svg{width:15px;height:15px;flex-shrink:0;color:var(--ink-2)}
 .cat .emo{flex:0 0 18px;text-align:center;font-size:14px;pointer-events:none}
@@ -147,7 +150,7 @@ html[data-theme="dark"] .cat:hover{background:color-mix(in srgb,var(--c,var(--ca
 .cat i{display:flex;align-items:center;color:var(--ink-2);opacity:0;transition:opacity .15s}
 .cat i svg{pointer-events:none}
 .cat:hover i,.cat:focus-within i{opacity:1}
-@media(hover:none){.cat i{opacity:1}.cat:hover{background:color-mix(in srgb,var(--c,var(--cat)) 18%,var(--surface))}}
+@media(hover:none){.cat i{opacity:1}.cat:hover{background:color-mix(in srgb,var(--cat) 18%,var(--surface))}}
 
 /* ---------- cartões ---------- */
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px}
